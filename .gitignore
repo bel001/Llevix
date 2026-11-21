@@ -1,18 +1,36 @@
-# Imágenes construidas y archivos de salida
+# Imágenes y salidas de construcción
 out/
 *.img
 *.img.zst
-*.bmap
+*.iso
 *.qcow2
+build/
+work/
 
-# Node / Astro / Svelte
-node_modules/
-dist/
-.astro/
-
-# Rust / Tauri
+# Creador (Tauri / Svelte / Rust)
+creator/node_modules/
+creator/dist/
+creator/src-tauri/target/
 target/
+node_modules/
 
-# Configuración local (puede tener datos privados)
-.claude/settings.local.json
+# Web
+web/node_modules/
+web/dist/
+
+# Secretos y configuraciones locales
 .env
+.env.*
+*.pem
+*.key
+*.pfx
+.claude/settings.local.json
+
+# Configs de prueba con contraseñas
+llevix-config.json
+!docs/**/llevix-config*.md
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.log

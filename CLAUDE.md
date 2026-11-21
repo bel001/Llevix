@@ -39,7 +39,8 @@ Idioma del proyecto: español (código comentado, mensajes al usuario, documenta
 - CI: GitHub Actions. Web y documentación: Astro en GitHub Pages.
 
 ## Particiones (GPT)
-1. LLEVIX-DATOS  exFAT  resto del disco (número 1 para que Windows y Android la vean)
+1. LLEVIX-DATOS  exFAT  resto del disco (número 1 en la tabla para que Windows y
+   Android la vean, pero ubicada físicamente al FINAL del disco para poder ampliarla)
 2. BIOS boot     1 MB
 3. ESP           FAT32  512 MB
 4. Sistema       btrfs  ~25 GB, subvolúmenes @ y @home, snapshots
@@ -66,18 +67,24 @@ Idioma del proyecto: español (código comentado, mensajes al usuario, documenta
   y usar solo dependencias compatibles con ambas licencias.
 
 ## Forma de trabajo
-- Una fase por sesión. Para tareas grandes, presentar primero un plan y esperar aprobación.
-- Al terminar cada tarea: ejecutar las pruebas y arreglar lo que falle.
+- Modo principal: piloto automático. Seguir las reglas de AUTOPILOTO.md.
+- Prompts de cada fase: prompts/fase-N-*.md. Planes: docs/planes/. Historial: docs/BITACORA.md.
+- Lo que necesite al dueño (decisiones, cuentas, pruebas físicas): escribirlo en PENDIENTES.md.
+- Lo que necesite sudo, loop devices o QEMU: probarlo en GitHub Actions
+  (git push → gh run watch → gh run view --log-failed → corregir).
 - Explicar los cambios en español sencillo; el dueño del proyecto está aprendiendo.
 - Una rama de Git por fase y commits pequeños.
 
+## Seguridad de discos (nunca romper)
+- Jamás escribir en /dev/sd*, /dev/nvme*, /dev/mmcblk* ni \\.\PhysicalDrive* desde
+  scripts de construcción o pruebas. Solo archivos .img y loop devices.
+- No usar dd contra dispositivos. Para imágenes vacías: truncate o fallocate.
+- El único código que escribe en discos reales es el creador (fase 5), y sus
+  pruebas usan discos simulados.
+
 ## Estado actual
-- Fase 0: hecha en la rama fase-0-estructura (estructura de carpetas, README,
-  CONTRIBUTING.md, .gitignore, .gitattributes y tools/check-env.sh).
-- Entorno del dueño: Windows 11 + Git Bash (creador) y WSL2 con Ubuntu 26.04 (imágenes).
-  Falta instalar Rust en Windows, y en WSL los paquetes de imagen/pruebas y Node.js 20+.
-- docs/definicion-producto.md y docs/plan-desarrollo.md todavía no existen.
-- Siguiente: Fase 1.
+- Fase actual: 0 (no iniciada).
+- Siguiente paso: ejecutar prompts/fase-0-inicio.md.
 
 ## Comandos
 - Verificar entorno: ./tools/check-env.sh
