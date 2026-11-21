@@ -142,18 +142,68 @@ qemu_esperar_informe() {
     return 1
 }
 
-# qga <json> → respuesta del agente de QEMU dentro de Llevix.
+# ---------- Agente de QEMU (qemu-guest-agent dentro de Llevix) ----------
+# Se usa UNA conexión persistente (coproc) y se sincroniza antes de cada petición
+# con guest-sync-delimited, para no mezclar respuestas viejas con nuevas.
+# Las respuestas se dejan en la variable QGA_RESPUESTA (no en la salida estándar,
+# porque los descriptores del coproc no están disponibles dentro de $(...)).
+
+QGA_PID=""
+QGA_RESPUESTA=""
+
+qga_desconectar() {
+    if [[ -n "$QGA_PID" ]]; then
+        kill "$QGA_PID" 2>/dev/null || true
+        wait "$QGA_PID" 2>/dev/null || true
+    fi
+    QGA_PID=""
+}
+
+qga_conectar() {
+    qga_desconectar
+    [[ -S "$TRABAJO/qga.sock" ]] || return 1
+    coproc QGA_CONEXION { socat - "UNIX-CONNECT:$TRABAJO/qga.sock" 2>/dev/null; }
+    QGA_PID="$QGA_CONEXION_PID"
+}
+
+# _qga_leer <segundos> → deja una línea en QGA_RESPUESTA.
+_qga_leer() {
+    QGA_RESPUESTA=""
+    [[ -n "$QGA_PID" ]] || return 1
+    IFS= read -r -t "$1" QGA_RESPUESTA <&"${QGA_CONEXION[0]}" || return 1
+    # guest-sync-delimited antepone el byte 0xFF: se quita.
+    QGA_RESPUESTA="${QGA_RESPUESTA//$'\xff'/}"
+}
+
+_qga_enviar() {
+    [[ -n "$QGA_PID" ]] || return 1
+    local fd="${QGA_CONEXION[1]}"
+    { printf '%s\n' "$1" 1>&"$fd"; } 2>/dev/null
+}
+
+# qga_sincronizar → 0 si el agente respondió a la sincronización.
+qga_sincronizar() {
+    local id=$(( RANDOM * 32768 + RANDOM )) inicio=$SECONDS
+    _qga_enviar "{\"execute\":\"guest-sync-delimited\",\"arguments\":{\"id\":$id}}" || return 1
+    while (( SECONDS - inicio < 10 )); do
+        _qga_leer 10 || return 1
+        [[ "$QGA_RESPUESTA" == *"\"return\": $id"* || "$QGA_RESPUESTA" == *"\"return\":$id"* ]] && return 0
+    done
+    return 1
+}
+
+# qga <json> → deja la respuesta en QGA_RESPUESTA.
 qga() {
-    local sync
-    sync="$(jq -cn --argjson id "$RANDOM" '{execute:"guest-sync", arguments:{id:$id}}')"
-    printf '%s\n%s\n' "$sync" "$1" | socat -t 20 - "UNIX-CONNECT:$TRABAJO/qga.sock" 2>/dev/null | tail -n1
+    qga_sincronizar || { qga_conectar && qga_sincronizar; } || return 1
+    _qga_enviar "$1" || return 1
+    _qga_leer 30
 }
 
 # qga_esperar <segundos> → 0 cuando el agente responde.
 qga_esperar() {
     local limite="$1" inicio=$SECONDS
     while (( SECONDS - inicio < limite )); do
-        if qga '{"execute":"guest-ping"}' | grep -q '"return"'; then
+        if qga_conectar && qga_sincronizar; then
             return 0
         fi
         sleep 3
@@ -164,17 +214,17 @@ qga_esperar() {
 
 # qga_ejecutar <comando sh> → imprime la salida y devuelve el código del comando.
 qga_ejecutar() {
-    local peticion respuesta pid estado salida codigo
+    local peticion pid salida codigo
     peticion="$(jq -cn --arg c "$1" \
         '{execute:"guest-exec", arguments:{path:"/bin/sh", arg:["-c",$c], "capture-output":true}}')"
-    respuesta="$(qga "$peticion")"
-    pid="$(jq -r '.return.pid // empty' <<<"$respuesta" 2>/dev/null || true)"
-    [[ -n "$pid" ]] || { echo "guest-exec falló: $respuesta" >&2; return 125; }
+    qga "$peticion" || true
+    pid="$(jq -r '.return.pid // empty' <<<"$QGA_RESPUESTA" 2>/dev/null || true)"
+    [[ -n "$pid" ]] || { echo "guest-exec falló: $QGA_RESPUESTA" >&2; return 125; }
     for _ in $(seq 120); do
-        estado="$(qga "{\"execute\":\"guest-exec-status\",\"arguments\":{\"pid\":$pid}}")"
-        if [[ "$(jq -r '.return.exited // false' <<<"$estado" 2>/dev/null)" == "true" ]]; then
-            salida="$(jq -r '.return["out-data"] // ""' <<<"$estado" | base64 -d 2>/dev/null || true)"
-            codigo="$(jq -r '.return.exitcode // 1' <<<"$estado")"
+        qga "{\"execute\":\"guest-exec-status\",\"arguments\":{\"pid\":$pid}}" || true
+        if [[ "$(jq -r '.return.exited // false' <<<"$QGA_RESPUESTA" 2>/dev/null)" == "true" ]]; then
+            salida="$(jq -r '.return["out-data"] // ""' <<<"$QGA_RESPUESTA" | base64 -d 2>/dev/null || true)"
+            codigo="$(jq -r '.return.exitcode // 1' <<<"$QGA_RESPUESTA")"
             [[ -n "$salida" ]] && printf '%s\n' "$salida"
             return "$codigo"
         fi
@@ -186,8 +236,11 @@ qga_ejecutar() {
 
 # qemu_apagar → apaga Llevix ordenadamente (como el botón de apagar).
 qemu_apagar() {
-    qemu_vivo || return 0
-    qga '{"execute":"guest-shutdown","arguments":{"mode":"powerdown"}}' >/dev/null || true
+    qemu_vivo || { qga_desconectar; return 0; }
+    # guest-shutdown no responde si funciona: solo se envía.
+    { qga_sincronizar || { qga_conectar && qga_sincronizar; }; } \
+        && _qga_enviar '{"execute":"guest-shutdown","arguments":{"mode":"powerdown"}}'
+    qga_desconectar
     local inicio=$SECONDS
     while qemu_vivo && (( SECONDS - inicio < 180 )); do sleep 2; done
     if qemu_vivo; then
@@ -201,6 +254,7 @@ qemu_apagar() {
 
 # qemu_matar → corta la "corriente" de golpe.
 qemu_matar() {
+    qga_desconectar
     if qemu_vivo; then
         kill -9 "$QEMU_PID" 2>/dev/null || true
         wait "$QEMU_PID" 2>/dev/null || true

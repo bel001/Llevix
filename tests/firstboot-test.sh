@@ -41,12 +41,12 @@ fallos=0
 ok()    { printf '  \e[32m[ok]\e[0m    %s\n' "$*"; }
 falla() { printf '  \e[31m[falla]\e[0m %s\n' "$*"; fallos=$((fallos + 1)); }
 comprobar() {  # comprobar <descripción> <comando sh dentro de Llevix>
-    local salida
-    if salida="$(qga_ejecutar "$2" 2>&1)"; then
+    # Sin $(...): la conexión con el agente no está disponible dentro de un subshell.
+    if qga_ejecutar "$2" > "$TRABAJO/salida.txt" 2>&1; then
         ok "$1"
     else
         falla "$1"
-        [[ -n "$salida" ]] && printf '          %s\n' "$salida"
+        sed 's/^/          /' "$TRABAJO/salida.txt"
     fi
 }
 
