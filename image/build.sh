@@ -317,13 +317,20 @@ en_chroot "update-initramfs -u -k all"
 en_chroot "grub-install --target=x86_64-efi --efi-directory=/boot/efi \
     --uefi-secure-boot --removable --no-nvram"
 
-# El GRUB firmado busca grub.cfg en EFI/ubuntu o junto a sí mismo: se dejan ambos.
-for d in BOOT ubuntu; do
-    mkdir -p "$ROOT/boot/efi/EFI/$d"
-    cat > "$ROOT/boot/efi/EFI/$d/grub.cfg" <<EOF
-search.fs_uuid $UUID_SIS root
-set prefix=(\$root)'/@/boot/grub'
-configfile \$prefix/grub.cfg
+# El GRUB firmado de Ubuntu busca su grub.cfg en varios lugares según cómo arrancó
+# (EFI/ubuntu, junto a sí mismo o /boot/grub de la partición EFI). Se deja el mismo
+# archivo puente en los tres: busca la partición del sistema por UUID y carga el
+# grub.cfg real que está en el subvolumen @.
+for d in EFI/BOOT EFI/ubuntu boot/grub; do
+    mkdir -p "$ROOT/boot/efi/$d"
+    cat > "$ROOT/boot/efi/$d/grub.cfg" <<EOF
+echo "Llevix: buscando el sistema..."
+if search --no-floppy --fs-uuid --set=root $UUID_SIS; then
+    set prefix=(\$root)'/@/boot/grub'
+    configfile \$prefix/grub.cfg
+else
+    echo "Llevix: no se encontró la partición del sistema ($UUID_SIS)."
+fi
 EOF
 done
 
