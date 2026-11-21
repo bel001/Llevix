@@ -1,0 +1,24 @@
+#!/bin/sh
+# Llevix: entrada "Modo gráficos seguros" (nomodeset) para PCs donde la pantalla
+# queda negra con el controlador de video normal.
+set -e
+
+# shellcheck source=/dev/null
+. /usr/share/grub/grub-mkconfig_lib
+
+[ -e /boot/vmlinuz ] && [ -e /boot/initrd.img ] || exit 0
+uuid="${GRUB_DEVICE_UUID:?}"
+ruta_boot="$(make_system_path_relative_to_its_root /boot)"
+subvol="$(echo "$ruta_boot" | sed -n 's#^/\(.*\)/boot$#\1#p')"
+opciones="root=UUID=$uuid ro"
+[ -n "$subvol" ] && opciones="$opciones rootflags=subvol=$subvol"
+
+echo "Agregando la entrada de gráficos seguros" >&2
+cat <<FIN
+menuentry 'Llevix (modo gráficos seguros)' --class gnu-linux --class os {
+	search --no-floppy --fs-uuid --set=root $uuid
+	echo 'Arrancando Llevix en modo gráficos seguros...'
+	linux $ruta_boot/vmlinuz $opciones nomodeset
+	initrd $ruta_boot/initrd.img
+}
+FIN

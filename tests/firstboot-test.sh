@@ -50,20 +50,6 @@ comprobar() {  # comprobar <descripción> <comando sh dentro de Llevix>
     fi
 }
 
-# preparar_disco <destino> <archivo config o vacío>
-# Copia la imagen (dispersa), la agranda a 32 GB como una memoria real más grande
-# que la imagen e inyecta el config en la partición EFI con mtools (sin montar nada).
-preparar_disco() {
-    local destino="$1" config="$2" inicio
-    cp --sparse=always "$IMG" "$destino"
-    truncate -s "$TAM_DISCO" "$destino"
-    if [[ -n "$config" ]]; then
-        inicio="$(partx -g -o START -n 3 "$IMG" | tr -d ' ')"
-        mcopy -o -i "$destino@@$((inicio * 512))" "$config" ::/llevix-config.json
-        mdir -i "$destino@@$((inicio * 512))" ::/ | grep -i llevix-config
-    fi
-}
-
 tam_datos_original="$(( $(partx -g -o SECTORS -n 1 "$IMG" | tr -d ' ') * 512 ))"
 echo "Tamaño original de LLEVIX-DATOS: $tam_datos_original bytes"
 
@@ -73,7 +59,7 @@ echo "Tamaño original de LLEVIX-DATOS: $tam_datos_original bytes"
     --contrasena "clave-de-prueba" --idioma es_MX.UTF-8 --zona America/Mexico_City \
     --teclado latam --hostname llevix-prueba > "$TRABAJO/config-valido.json"
 
-preparar_disco "$TRABAJO/disco1.img" "$TRABAJO/config-valido.json"
+preparar_disco "$IMG" "$TRABAJO/disco1.img" "$TAM_DISCO" "$TRABAJO/config-valido.json"
 
 echo; echo "Caso 1: primer arranque con config válido"
 qemu_iniciar valido "$MODO" "$TRABAJO/disco1.img" raw
@@ -125,7 +111,7 @@ rm -f "$TRABAJO/disco1.img"
 # ---------- Caso 3: config con errores ----------
 
 "$DIR_REPO/tools/make-config.sh" --usuario "Nombre Invalido" --contrasena "x" > "$TRABAJO/config-malo.json"
-preparar_disco "$TRABAJO/disco2.img" "$TRABAJO/config-malo.json"
+preparar_disco "$IMG" "$TRABAJO/disco2.img" "$TAM_DISCO" "$TRABAJO/config-malo.json"
 
 echo; echo "Caso 3: config con errores"
 qemu_iniciar malo "$MODO" "$TRABAJO/disco2.img" raw

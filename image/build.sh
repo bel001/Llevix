@@ -23,6 +23,10 @@ SYS_SIZE="${LLEVIX_SYS_SIZE:-24G}"
 MIRROR="${LLEVIX_MIRROR:-http://archive.ubuntu.com/ubuntu}"
 MIRROR_PUBLICO="http://archive.ubuntu.com/ubuntu"
 MIRROR_SEGURIDAD="http://security.ubuntu.com/ubuntu"
+# Repositorio de Linux Mint y su llave (verificada por SHA256: el servidor no tiene HTTPS).
+MINT_REPO="http://packages.linuxmint.com"
+MINT_LLAVE_URL="$MINT_REPO/pool/main/l/linuxmint-keyring/linuxmint-keyring_2022.06.21_all.deb"
+MINT_LLAVE_SHA256="b71be690c543112ea7b65f43e9bbce9a3f17dd5cc784074858f0824154942a99"
 OPC_BTRFS="compress=zstd:3,noatime"
 
 LOOP=""
@@ -128,11 +132,13 @@ UUID_ESP="$(blkid -s UUID -o value "$P_ESP")"
 
 # ---------- 2. Subvolúmenes y montaje ----------
 
-paso "Creando subvolúmenes btrfs @ y @home"
+paso "Creando subvolúmenes btrfs @, @home y @snapshots"
 ROOT="$(mktemp -d /tmp/llevix-root.XXXXXX)"
 mount "$P_SIS" "$ROOT"
 btrfs -q subvolume create "$ROOT/@"
 btrfs -q subvolume create "$ROOT/@home"
+# @snapshots guarda los "estados" del sistema (ver overlay/usr/lib/llevix/guardar-estado.sh).
+btrfs -q subvolume create "$ROOT/@snapshots"
 umount "$ROOT"
 
 mount -o "subvol=@,$OPC_BTRFS" "$P_SIS" "$ROOT"
@@ -146,6 +152,7 @@ paso "debootstrap $SUITE (esto tarda unos minutos)"
 debootstrap --arch=amd64 --components=main,restricted,universe,multiverse \
     "$SUITE" "$ROOT" "$MIRROR"
 
+mkdir -p "$ROOT/.snapshots"
 mount --bind /dev "$ROOT/dev"
 mount -t devpts devpts "$ROOT/dev/pts"
 mount -t proc proc "$ROOT/proc"
@@ -182,17 +189,41 @@ EOF
 }
 escribir_fuentes "$MIRROR" "$MIRROR_SEGURIDAD"
 
+if [[ "$BASE" == "mint" ]]; then
+    : "${MINT_SUITE:?falta MINT_SUITE en $CONF}"
+    paso "Agregando el repositorio de Linux Mint ($MINT_SUITE)"
+    curl -fsSL --retry 3 -o "$ROOT/tmp/linuxmint-keyring.deb" "$MINT_LLAVE_URL"
+    echo "$MINT_LLAVE_SHA256  $ROOT/tmp/linuxmint-keyring.deb" | sha256sum -c -         || error "la llave de Linux Mint no coincide con la suma SHA256 esperada"
+    en_chroot "dpkg -i /tmp/linuxmint-keyring.deb && rm /tmp/linuxmint-keyring.deb"
+    cat > "$ROOT/etc/apt/sources.list.d/linuxmint.sources" <<EOF
+Types: deb
+URIs: $MINT_REPO
+Suites: $MINT_SUITE
+Components: main upstream import backport
+Signed-By: /usr/share/keyrings/linuxmint-keyring.gpg
+EOF
+    # Como en Linux Mint: sus paquetes tienen prioridad sobre los de Ubuntu.
+    cat > "$ROOT/etc/apt/preferences.d/llevix-linuxmint.pref" <<'EOF'
+Package: *
+Pin: origin packages.linuxmint.com
+Pin-Priority: 700
+EOF
+fi
+
 # Durante la construcción no se arranca ningún servicio.
 printf '#!/bin/sh\nexit 101\n' > "$ROOT/usr/sbin/policy-rc.d"
 chmod +x "$ROOT/usr/sbin/policy-rc.d"
 
 # Firefox y Thunderbird de Ubuntu 24.04 son paquetes que instalan un snap, y eso no
 # funciona dentro de un chroot. Se excluyen por ahora (ver docs/planes/fase-1.md).
-cat > "$ROOT/etc/apt/preferences.d/llevix-sin-snaps-transicionales" <<'EOF'
+# Linux Mint los trae como paquetes .deb normales: ahí no se excluyen.
+if [[ "$BASE" == "ubuntu" ]]; then
+    cat > "$ROOT/etc/apt/preferences.d/llevix-sin-snaps-transicionales" <<'EOF'
 Package: firefox thunderbird
 Pin: version *
 Pin-Priority: -1
 EOF
+fi
 
 # Respuestas automáticas para GRUB: no instalar en ningún disco ni tocar la NVRAM.
 en_chroot "debconf-set-selections <<'EOF'
@@ -220,7 +251,7 @@ en_chroot "apt-get update && apt-get -y full-upgrade"
 en_chroot "apt-get -y install linux-generic linux-firmware \
     btrfs-progs exfatprogs dosfstools \
     shim-signed grub-efi-amd64-signed grub-efi-amd64-bin grub-pc-bin grub2-common \
-    sudo locales tzdata jq gdisk qemu-guest-agent"
+    sudo locales tzdata jq gdisk qemu-guest-agent sg3-utils hdparm"
 
 paso "Instalando escritorio: $PAQUETES_ESCRITORIO"
 poner_dns
@@ -235,6 +266,7 @@ cat > "$ROOT/etc/fstab" <<EOF
 # Llevix: todo por UUID, nunca por /dev/sdX (el disco cambia de nombre en cada PC).
 UUID=$UUID_SIS  /          btrfs  subvol=@,$OPC_BTRFS      0  0
 UUID=$UUID_SIS  /home      btrfs  subvol=@home,$OPC_BTRFS  0  0
+UUID=$UUID_SIS  /.snapshots btrfs subvol=@snapshots,$OPC_BTRFS 0  0
 UUID=$UUID_ESP  /boot/efi  vfat   umask=0077,nofail        0  1
 EOF
 
@@ -255,6 +287,8 @@ network:
   renderer: NetworkManager
 EOF
 chmod 600 "$ROOT/etc/netplan/01-network-manager-all.yaml"
+# Ninguna conexión guardada atada a una tarjeta de red concreta.
+rm -f "$ROOT"/etc/NetworkManager/system-connections/*
 
 en_chroot "locale-gen C.UTF-8 en_US.UTF-8 es_ES.UTF-8 >/dev/null && update-locale LANG=C.UTF-8"
 
@@ -269,7 +303,7 @@ install -D -m 0644 "$DIR_IMAGE/firstboot/llevix-firstboot.service" \
     "$ROOT/usr/lib/systemd/system/llevix-firstboot.service"
 install -D -m 0644 "$DIR_REPO/docs/llevix-config.md" "$ROOT/usr/share/doc/llevix/llevix-config.md"
 
-en_chroot "systemctl enable llevix-estado-arranque.service llevix-firstboot.service"
+en_chroot "systemctl enable llevix-estado-arranque.service llevix-firstboot.service     llevix-disco-sistema.service fstrim.timer tmp.mount"
 
 mkdir -p "$ROOT/etc/llevix"
 cat > "$ROOT/etc/llevix/version" <<EOF
