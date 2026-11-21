@@ -57,7 +57,7 @@ limpiar() {
     set +e
     if [[ -n "$ROOT" && -d "$ROOT" ]]; then
         # Desmonta todo lo que quedó montado debajo de ROOT, del más profundo al más alto.
-        findmnt -R -n -o TARGET "$ROOT" 2>/dev/null | sort -r | while read -r punto; do
+        findmnt -R -n -l -o TARGET "$ROOT" 2>/dev/null | sort -r | while read -r punto; do
             umount "$punto" 2>/dev/null || umount -l "$punto"
         done
         rmdir "$ROOT" 2>/dev/null
@@ -194,7 +194,8 @@ if [[ "$BASE" == "mint" ]]; then
     paso "Agregando el repositorio de Linux Mint ($MINT_SUITE)"
     curl -fsSL --retry 3 -o "$ROOT/tmp/linuxmint-keyring.deb" "$MINT_LLAVE_URL"
     echo "$MINT_LLAVE_SHA256  $ROOT/tmp/linuxmint-keyring.deb" | sha256sum -c -         || error "la llave de Linux Mint no coincide con la suma SHA256 esperada"
-    en_chroot "dpkg -i /tmp/linuxmint-keyring.deb && rm /tmp/linuxmint-keyring.deb"
+    # La llave necesita gnupg instalado antes.
+    en_chroot "apt-get update && apt-get -y install gnupg && dpkg -i /tmp/linuxmint-keyring.deb && rm /tmp/linuxmint-keyring.deb"
     cat > "$ROOT/etc/apt/sources.list.d/linuxmint.sources" <<EOF
 Types: deb
 URIs: $MINT_REPO
