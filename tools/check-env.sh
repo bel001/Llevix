@@ -106,6 +106,18 @@ revisar_comunes() {
         fi
     fi
 
+    # gh: la herramienta de GitHub; se usa para seguir las pruebas en GitHub Actions.
+    if tiene_comando gh; then
+        ok "gh $(gh --version | awk 'NR==1 {print $3}')"
+    else
+        falta "gh (herramienta de GitHub)"
+        if [[ "$SISTEMA" == "windows" ]]; then
+            agregar_instruccion "winget install --id GitHub.cli -e"
+        else
+            agregar_apt gh
+        fi
+    fi
+
     # Node.js: lo usan el creador (Svelte/Vite) y el sitio web (Astro). Se pide 20 o más.
     if tiene_comando node; then
         local v
