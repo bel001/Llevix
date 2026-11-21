@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Logo provisorio de Llevix: una memoria USB con una L. -->
+  <rect x="176" y="24" width="160" height="120" rx="16" fill="#9aa4b2"/>
+  <rect x="216" y="56" width="28" height="28" fill="#1d2330"/>
+  <rect x="268" y="56" width="28" height="28" fill="#1d2330"/>
+  <rect x="96" y="128" width="320" height="360" rx="48" fill="#1f6feb"/>
+  <path d="M196 208 h48 v176 h96 v48 h-144 z" fill="#ffffff"/>
+</svg>

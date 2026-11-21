@@ -1,0 +1,80 @@
+# Compila y prueba el creador de Llevix (Tauri 2 + Svelte) y genera el instalador de Windows.
+name: creador
+
+on:
+  push:
+    branches: [main, 'fase-*']
+    paths:
+      - 'creator/**'
+      - '.github/workflows/creador.yml'
+  pull_request:
+    paths:
+      - 'creator/**'
+      - '.github/workflows/creador.yml'
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: creador-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Lógica pura (bmap, escritura, config, filtro de discos con discos simulados) en Linux.
+  nucleo-linux:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: creator
+    steps:
+      - uses: actions/checkout@v5
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: creator
+      - name: Pruebas del núcleo
+        run: cargo test -p llevix-nucleo
+
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: creator
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: creator/package-lock.json
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: creator
+
+      - name: Pruebas del núcleo en Windows (incluye discos reales en modo solo lectura)
+        run: cargo test -p llevix-nucleo
+
+      - name: Instalar dependencias de la interfaz
+        run: npm ci
+
+      - name: Compilar el instalador
+        run: npx tauri build
+
+      - name: Listar instaladores
+        run: ls -la target/release/bundle/nsis target/release/bundle/msi
+
+      - name: Guardar instaladores
+        uses: actions/upload-artifact@v5
+        with:
+          name: creador-llevix-windows
+          path: |
+            creator/target/release/bundle/nsis/*.exe
+            creator/target/release/bundle/msi/*.msi
+          retention-days: 14

@@ -34,3 +34,6 @@ llevix-config.json
 .DS_Store
 Thumbs.db
 *.log
+
+# Tauri genera esquemas al compilar
+creator/src-tauri/gen/

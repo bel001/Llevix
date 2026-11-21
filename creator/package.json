@@ -1,0 +1,21 @@
+{
+  "name": "llevix-creador",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Creador de Llevix: prepara una memoria USB o un disco externo con Linux portátil",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.12.5"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@tauri-apps/cli": "^2.12.6",
+    "svelte": "^5.59.1",
+    "vite": "^8.3.8"
+  }
+}

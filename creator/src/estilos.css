@@ -1,0 +1,66 @@
+/* Estilos del creador de Llevix: claros por defecto, oscuros si Windows usa el modo oscuro. */
+:root {
+  --fondo: #f6f7f9;
+  --superficie: #ffffff;
+  --texto: #1d2330;
+  --suave: #5b6475;
+  --borde: #d7dbe3;
+  --acento: #1f6feb;
+  --acento-texto: #ffffff;
+  --peligro: #c62828;
+  --aviso-fondo: #fff4e5;
+  --aviso-borde: #f0a020;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  color: var(--texto);
+  background: var(--fondo);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fondo: #14171c;
+    --superficie: #1d2128;
+    --texto: #e7eaf0;
+    --suave: #a0a8b8;
+    --borde: #343a46;
+    --acento: #4c8dff;
+    --aviso-fondo: #33270f;
+    --aviso-borde: #b07818;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--fondo); }
+main { max-width: 860px; margin: 0 auto; padding: 24px; }
+header h1 { margin: 0; font-size: 1.6rem; }
+.sub { margin: 4px 0 16px; color: var(--suave); }
+.pasos { display: flex; gap: 16px; list-style: none; padding: 0; margin: 0 0 16px; color: var(--suave); }
+.pasos .activo { color: var(--acento); font-weight: 600; }
+.pasos .hecho { color: var(--texto); }
+section { background: var(--superficie); border: 1px solid var(--borde); border-radius: 10px; padding: 20px; }
+h2 { margin-top: 0; }
+.tarjetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin: 12px 0; }
+.tarjeta {
+  display: flex; flex-direction: column; gap: 6px; text-align: left; padding: 14px;
+  border: 2px solid var(--borde); border-radius: 8px; background: var(--superficie); color: var(--texto); cursor: pointer;
+}
+.tarjeta.elegida { border-color: var(--acento); }
+.tarjeta small { color: var(--suave); }
+.etiqueta { align-self: flex-start; background: #2e7d32; color: #fff; font-size: 0.75rem; padding: 2px 8px; border-radius: 10px; }
+.formulario { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+label { display: flex; flex-direction: column; gap: 4px; font-size: 0.95rem; }
+label.casilla { flex-direction: row; align-items: center; gap: 8px; margin-top: 12px; }
+input, select { padding: 8px; border: 1px solid var(--borde); border-radius: 6px; background: var(--fondo); color: var(--texto); font-size: 1rem; }
+button { padding: 8px 16px; border-radius: 6px; border: 1px solid var(--borde); background: var(--superficie); color: var(--texto); font-size: 1rem; cursor: pointer; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.principal { background: var(--acento); color: var(--acento-texto); border-color: var(--acento); }
+button.peligro { background: var(--peligro); border-color: var(--peligro); }
+.acciones { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.nota { color: var(--suave); font-size: 0.9rem; }
+.error { color: var(--peligro); }
+.aviso { background: var(--aviso-fondo); border: 1px solid var(--aviso-borde); border-radius: 8px; padding: 12px; margin-top: 12px; }
+.aviso p { margin: 4px 0; }
+.barra { height: 14px; background: var(--fondo); border: 1px solid var(--borde); border-radius: 7px; overflow: hidden; }
+.barra div { height: 100%; background: var(--acento); transition: width 0.3s; }
+table { border-collapse: collapse; margin: 8px 0; }
+td, th { border: 1px solid var(--borde); padding: 4px 12px; text-align: left; }
+.modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; }
+.caja { background: var(--superficie); border-radius: 10px; padding: 20px; max-width: 480px; }
+@media (max-width: 640px) { .formulario { grid-template-columns: 1fr; } }

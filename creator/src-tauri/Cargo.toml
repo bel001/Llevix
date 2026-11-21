@@ -1,0 +1,19 @@
+[package]
+name = "llevix-creador"
+description = "Creador de Llevix para Windows"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[lib]
+name = "llevix_creador_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+llevix-nucleo = { path = "../nucleo" }
