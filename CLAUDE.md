@@ -83,8 +83,11 @@ Idioma del proyecto: español (código comentado, mensajes al usuario, documenta
   pruebas usan discos simulados.
 
 ## Estado actual
-- Fase actual: 0 (no iniciada).
-- Siguiente paso: ejecutar prompts/fase-0-inicio.md.
+- Fase 0: completa (lint verde en GitHub). Pendiente humano: instalar paquetes locales (PENDIENTES.md).
+- Fase actual: 1 (en curso, rama fase-1).
+- Siguiente paso: ejecutar prompts/fase-1-imagen.md.
+- Herramientas locales: shellcheck con Docker
+  (`MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W)":/mnt -w /mnt koalaman/shellcheck:stable -x <archivos>`).
 
 ## Comandos
 - Verificar entorno: ./tools/check-env.sh
