@@ -194,14 +194,15 @@ if [[ "$BASE" == "mint" ]]; then
     paso "Agregando el repositorio de Linux Mint ($MINT_SUITE)"
     curl -fsSL --retry 3 -o "$ROOT/tmp/linuxmint-keyring.deb" "$MINT_LLAVE_URL"
     echo "$MINT_LLAVE_SHA256  $ROOT/tmp/linuxmint-keyring.deb" | sha256sum -c -         || error "la llave de Linux Mint no coincide con la suma SHA256 esperada"
-    # La llave necesita gnupg instalado antes.
+    # La llave necesita gnupg instalado antes. El paquete trae dos llaveros: el
+    # vigente es el de /etc/apt/trusted.gpg.d (el de /usr/share/keyrings es de 2016).
     en_chroot "apt-get update && apt-get -y install gnupg && dpkg -i /tmp/linuxmint-keyring.deb && rm /tmp/linuxmint-keyring.deb"
     cat > "$ROOT/etc/apt/sources.list.d/linuxmint.sources" <<EOF
 Types: deb
 URIs: $MINT_REPO
 Suites: $MINT_SUITE
 Components: main upstream import backport
-Signed-By: /usr/share/keyrings/linuxmint-keyring.gpg
+Signed-By: /etc/apt/trusted.gpg.d/linuxmint-keyring.gpg
 EOF
     # Como en Linux Mint: sus paquetes tienen prioridad sobre los de Ubuntu.
     cat > "$ROOT/etc/apt/preferences.d/llevix-linuxmint.pref" <<'EOF'
