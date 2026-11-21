@@ -1,0 +1,36 @@
+# Imágenes y salidas de construcción
+out/
+*.img
+*.img.zst
+*.iso
+*.qcow2
+build/
+work/
+
+# Creador (Tauri / Svelte / Rust)
+creator/node_modules/
+creator/dist/
+creator/src-tauri/target/
+target/
+node_modules/
+
+# Web
+web/node_modules/
+web/dist/
+
+# Secretos y configuraciones locales
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+.claude/settings.local.json
+
+# Configs de prueba con contraseñas
+llevix-config.json
+!docs/**/llevix-config*.md
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.log
