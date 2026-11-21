@@ -2,6 +2,35 @@
 
 Lo más reciente arriba. Cada fase anota qué se hizo, qué se decidió y qué quedó pendiente.
 
+## Fase 2 — Primer arranque personalizado (2026-11-21)
+
+**Qué se hizo**
+- Formato `llevix-config.json` (docs/llevix-config.md) y `tools/make-config.sh`.
+- Servicio `llevix-firstboot`: valida todo antes de tocar nada; amplía LLEVIX-DATOS al
+  final del disco (solo el disco de Llevix, solo la partición 1 vacía); aplica nombre del
+  equipo, zona horaria, idioma y teclado; crea el usuario con sudo usando el hash
+  SHA-512; monta LLEVIX-DATOS en `~/Datos`; borra el config y se desactiva.
+  Con errores: deshace, escribe `LLEVIX-ERROR.txt` en la ESP y el sistema sigue arrancando.
+- Se quitó el usuario temporal y el inicio automático de la fase 1.
+- `tests/lib/qemu.sh`: funciones comunes; el agente de QEMU (`qemu-guest-agent`, que
+  solo se activa dentro de una máquina virtual) permite ejecutar comprobaciones dentro de Llevix.
+- `tests/firstboot-test.sh`: 24 comprobaciones (config válido en disco de 32 GB,
+  persistencia tras apagar y volver a arrancar, config con errores). Todo verde en CI.
+
+**Decisiones**
+- exFAT no se puede agrandar: como en el primer arranque LLEVIX-DATOS está vacía, se
+  recrea la partición hasta el final del disco y se vuelve a formatear.
+- `~/Datos` se monta por UUID (único por disco) con `nofail`: si falta, igual arranca.
+- Sin config, se usa la bienvenida de la distribución (GNOME crea la cuenta).
+- Paquetes de idioma español incluidos en la imagen para que todo salga en español sin internet.
+
+**Problemas encontrados**
+- Hablar con el agente de QEMU abriendo una conexión por comando mezclaba respuestas:
+  se usa una sola conexión con `guest-sync-delimited`.
+
+**Pendiente**
+- Accesibilidad (`accesibilidad.*`) se valida pero se aplicará en la fase 7g.
+
 ## Fase 1 — Primera imagen que arranca (2026-11-21)
 
 **Qué se hizo**

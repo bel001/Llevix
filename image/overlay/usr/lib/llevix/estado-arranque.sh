@@ -2,6 +2,7 @@
 # estado-arranque.sh — Escribe en el puerto serie (ttyS0) cómo arrancó el sistema.
 # Formato que lee tests/qemu-boot-test.sh:
 #   LLEVIX-ARRANQUE modo=<bios|uefi|uefi-sb> gestor=<estado del gestor de sesión>
+#   LLEVIX-PRIMER-ARRANQUE resultado=<ok|error|sin-config|pendiente>
 #   ...unidades que fallaron...
 #   LLEVIX-ARRANQUE-FIN
 set -euo pipefail
@@ -25,10 +26,14 @@ fi
 
 gestor="$(systemctl is-active display-manager.service 2>/dev/null || true)"
 
+# Resultado de llevix-firstboot: ok, error, sin-config o pendiente.
+primer_arranque="$(cut -d: -f1 /var/lib/llevix/firstboot-resultado 2>/dev/null || echo pendiente)"
+
 {
     # Salto de línea inicial: el firmware deja códigos de pantalla en la línea actual.
     echo
     echo "LLEVIX-ARRANQUE modo=$modo gestor=$gestor"
+    echo "LLEVIX-PRIMER-ARRANQUE resultado=$primer_arranque"
     echo "Unidades con fallo:"
     systemctl --failed --no-legend --plain 2>/dev/null || true
     echo "LLEVIX-ARRANQUE-FIN"

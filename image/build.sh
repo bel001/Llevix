@@ -220,12 +220,12 @@ en_chroot "apt-get update && apt-get -y full-upgrade"
 en_chroot "apt-get -y install linux-generic linux-firmware \
     btrfs-progs exfatprogs dosfstools \
     shim-signed grub-efi-amd64-signed grub-efi-amd64-bin grub-pc-bin grub2-common \
-    sudo locales tzdata"
+    sudo locales tzdata jq gdisk qemu-guest-agent"
 
 paso "Instalando escritorio: $PAQUETES_ESCRITORIO"
 poner_dns
 # shellcheck disable=SC2086  # la lista de paquetes se separa a propósito
-en_chroot "apt-get -y install $PAQUETES_ESCRITORIO"
+en_chroot "apt-get -y install $PAQUETES_ESCRITORIO ${PAQUETES_IDIOMA:-}"
 
 # ---------- 4. Configuración del sistema ----------
 
@@ -262,7 +262,14 @@ en_chroot "locale-gen C.UTF-8 en_US.UTF-8 es_ES.UTF-8 >/dev/null && update-local
 paso "Copiando la capa de Llevix (image/overlay)"
 cp -a "$DIR_IMAGE/overlay/." "$ROOT/"
 find "$ROOT" -xdev -name .gitkeep -delete
-en_chroot "systemctl enable llevix-estado-arranque.service"
+
+# Primer arranque: lee llevix-config.json, crea el usuario y amplía LLEVIX-DATOS.
+install -D -m 0755 "$DIR_IMAGE/firstboot/firstboot.sh" "$ROOT/usr/lib/llevix/firstboot.sh"
+install -D -m 0644 "$DIR_IMAGE/firstboot/llevix-firstboot.service" \
+    "$ROOT/usr/lib/systemd/system/llevix-firstboot.service"
+install -D -m 0644 "$DIR_REPO/docs/llevix-config.md" "$ROOT/usr/share/doc/llevix/llevix-config.md"
+
+en_chroot "systemctl enable llevix-estado-arranque.service llevix-firstboot.service"
 
 mkdir -p "$ROOT/etc/llevix"
 cat > "$ROOT/etc/llevix/version" <<EOF
@@ -272,22 +279,9 @@ FECHA=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 COMMIT=$(git -C "$DIR_REPO" rev-parse --short HEAD 2>/dev/null || echo desconocido)
 EOF
 
-# ---------- 5. Usuario temporal (SOLO fase 1, se quitará en la fase 2) ----------
-
-paso "Creando usuario temporal de pruebas 'llevix' (sin contraseña)"
-en_chroot "useradd -m -s /bin/bash -G sudo,adm llevix && passwd -d llevix"
-touch "$ROOT/etc/llevix/usuario-temporal"
-case "$GESTOR_SESION" in
-    gdm3)
-        cat > "$ROOT/etc/gdm3/custom.conf" <<'EOF'
-# Inicio automático TEMPORAL de la fase 1 (se quita en la fase 2).
-[daemon]
-AutomaticLoginEnable=true
-AutomaticLogin=llevix
-EOF
-        ;;
-    *) error "gestor de sesión no soportado todavía: $GESTOR_SESION" ;;
-esac
+# ---------- 5. Usuarios ----------
+# La imagen no trae ninguna cuenta de usuario: la crea llevix-firstboot a partir de
+# llevix-config.json, o la pantalla de bienvenida de la distro si no hay archivo.
 
 # ---------- 6. Marca ----------
 
