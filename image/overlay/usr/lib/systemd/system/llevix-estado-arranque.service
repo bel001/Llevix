@@ -1,0 +1,13 @@
+# Informa por el puerto serie que el sistema llegó al escritorio.
+# Lo usan las pruebas de QEMU (tests/qemu-boot-test.sh). En una PC real sin
+# puerto serie no hace nada.
+[Unit]
+Description=Llevix: informe de arranque por puerto serie
+After=graphical.target display-manager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/llevix/estado-arranque.sh
+
+[Install]
+WantedBy=graphical.target
