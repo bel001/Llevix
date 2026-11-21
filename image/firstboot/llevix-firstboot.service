@@ -1,0 +1,19 @@
+# Primer arranque de Llevix: aplica llevix-config.json una sola vez.
+[Unit]
+Description=Llevix: configuración del primer arranque
+Documentation=file:/usr/share/doc/llevix/llevix-config.md
+After=local-fs.target systemd-remount-fs.service
+RequiresMountsFor=/boot/efi /var/lib
+Before=display-manager.service systemd-user-sessions.service getty@tty1.service
+ConditionPathExists=!/var/lib/llevix/firstboot-hecho
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/llevix/firstboot.sh
+StandardOutput=journal+console
+StandardError=journal+console
+TimeoutStartSec=15min
+
+[Install]
+WantedBy=multi-user.target

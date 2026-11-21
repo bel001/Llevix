@@ -53,9 +53,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y debootstrap gdisk dosfstools exfatprogs btrfs-progs \
-            zstd bmap-tools qemu-system-x86 qemu-utils ovmf seabios socat
+            zstd bmap-tools qemu-system-x86 qemu-utils ovmf seabios socat mtools jq openssl
 
       - name: Construir imagen
+        id: construir
         run: |
           sudo --preserve-env=LLEVIX_MIRROR LLEVIX_OUT="$SALIDA" \
             ./image/build.sh "${{ matrix.variante }}" 2>&1 | tee "$SALIDA/build.log"
@@ -76,6 +77,12 @@ jobs:
         env:
           LLEVIX_TEST_DIR: ${{ env.SALIDA }}/pruebas
         run: ./tests/qemu-boot-test.sh "$SALIDA/llevix-${{ matrix.variante }}.img"
+
+      - name: Probar primer arranque (usuario, datos, persistencia, errores)
+        if: ${{ !cancelled() && steps.construir.outcome == 'success' }}
+        env:
+          LLEVIX_TEST_DIR: ${{ env.SALIDA }}/pruebas
+        run: ./tests/firstboot-test.sh "$SALIDA/llevix-${{ matrix.variante }}.img"
 
       - name: Comprimir imagen
         run: |
