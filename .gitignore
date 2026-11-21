@@ -1,0 +1,18 @@
+# Imágenes construidas y archivos de salida
+out/
+*.img
+*.img.zst
+*.bmap
+*.qcow2
+
+# Node / Astro / Svelte
+node_modules/
+dist/
+.astro/
+
+# Rust / Tauri
+target/
+
+# Configuración local (puede tener datos privados)
+.claude/settings.local.json
+.env

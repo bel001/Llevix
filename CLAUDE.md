@@ -1,0 +1,85 @@
+# Llevix
+
+Llevix crea memorias USB y discos externos (HDD, SSD, NVMe en caja USB) con Linux
+portátil y persistente que arrancan en cualquier PC x86_64. El usuario elige la
+distribución, escribe usuario y contraseña, y el disco queda listo. Sus archivos se
+conservan entre computadoras y la partición de datos también se abre desde el celular.
+
+Documentos de referencia, si existen en el repositorio (leerlos cuando haga falta contexto):
+- docs/definicion-producto.md: qué es Llevix, público, alcance de la v1, riesgos.
+- docs/plan-desarrollo.md: fases de desarrollo con sus prompts y criterios de prueba.
+
+Idioma del proyecto: español (código comentado, mensajes al usuario, documentación).
+
+## Arquitectura
+- image/: construye una imagen .img por cada variante de distro con debootstrap.
+- creator/: app de escritorio para Windows (Tauri 2 + Svelte) que descarga la
+  imagen, verifica su SHA256, la escribe al disco y deja llevix-config.json en la ESP.
+- firstboot: servicio systemd que en el primer arranque lee llevix-config.json, crea el
+  usuario, aplica idioma y zona horaria, amplía la partición de datos y borra el archivo.
+- Llevix NO instala Linux desde Windows: escribe una imagen ya construida y probada.
+
+## Distribuciones (las elige el usuario)
+- Llevix NO cambia el escritorio: cada variante se entrega como la distro la trae.
+- v1: Ubuntu 24.04 LTS (Ubuntu, Kubuntu, Xubuntu, Lubuntu) y Linux Mint 22
+  (Cinnamon, MATE, Xfce). Cada variante es un archivo en image/distros/.
+- El creador marca como "ligeras" las variantes para PCs con poca RAM (Xubuntu,
+  Lubuntu, Mint Xfce, Mint MATE).
+- Lo que Llevix sí agrega a todas: capa de portabilidad, primer arranque y ajustes
+  para escribir poco en el disco.
+
+## Tecnologías
+- Imágenes: bash + debootstrap; btrfs con compresión zstd (menos lectura del USB).
+- Primer arranque: bash + systemd.
+- Creador: Tauri 2 (Rust) + Svelte. Instalador pequeño, interfaz liviana.
+- Escritura al disco: en Rust, solo los bloques con datos según el mapa bmap,
+  descomprimiendo zstd mientras escribe (sin archivos temporales grandes).
+- Publicación: imágenes .img.zst + .bmap + SHA256 + manifest.json en GitHub Releases.
+- Pruebas: QEMU + OVMF (UEFI, Secure Boot) y SeaBIOS.
+- CI: GitHub Actions. Web y documentación: Astro en GitHub Pages.
+
+## Particiones (GPT)
+1. LLEVIX-DATOS  exFAT  resto del disco (número 1 para que Windows y Android la vean)
+2. BIOS boot     1 MB
+3. ESP           FAT32  512 MB
+4. Sistema       btrfs  ~25 GB, subvolúmenes @ y @home, snapshots
+
+## Reglas
+- Debe arrancar en UEFI con Secure Boot (shim + grub firmados) y en BIOS antiguo.
+- Secure Boot: el certificado Microsoft UEFI CA 2011 expiró en junio de 2026. Usar un shim
+  firmado con 2011 y 2023 cuando exista, y probar en firmware con solo 2011, solo 2023 y ambos.
+- Nunca pedir al usuario que desactive Secure Boot (puede disparar la recuperación de
+  BitLocker en su Windows). Indicar siempre el menú de arranque de una sola vez (F12, F9, Esc).
+- Marcas: no distribuir logos ni el nombre "Ubuntu" o "Linux Mint" como marca del producto
+  en imágenes modificadas. Presentarlo como "Llevix, basado en Ubuntu".
+- Nada atado al hardware: sin xorg.conf fijo, sin drivers propietarios en la imagen.
+- Minimizar escrituras al disco: journald en memoria, noatime, /tmp en RAM.
+- Soportar cualquier disco conectado por USB: TRIM en SSD/NVMe, sin asumir tamaño fijo.
+- Nunca guardar contraseñas en texto plano: solo hash SHA-512.
+- El creador nunca debe mostrar ni escribir discos internos o el disco del sistema.
+  Si el disco elegido tiene datos, mostrar su contenido y pedir doble confirmación.
+- Todo cambio en image/ debe pasar tests/qemu-boot-test.sh en UEFI y BIOS.
+- Scripts en bash con `set -euo pipefail`.
+
+## Licencia
+- Pendiente: GPL-3.0 o MIT. Mientras tanto, no copiar código GPL de otros proyectos
+  y usar solo dependencias compatibles con ambas licencias.
+
+## Forma de trabajo
+- Una fase por sesión. Para tareas grandes, presentar primero un plan y esperar aprobación.
+- Al terminar cada tarea: ejecutar las pruebas y arreglar lo que falle.
+- Explicar los cambios en español sencillo; el dueño del proyecto está aprendiendo.
+- Una rama de Git por fase y commits pequeños.
+
+## Estado actual
+- Fase 0: hecha en la rama fase-0-estructura (estructura de carpetas, README,
+  CONTRIBUTING.md, .gitignore, .gitattributes y tools/check-env.sh).
+- Entorno del dueño: Windows 11 + Git Bash (creador) y WSL2 con Ubuntu 26.04 (imágenes).
+  Falta instalar Rust en Windows, y en WSL los paquetes de imagen/pruebas y Node.js 20+.
+- docs/definicion-producto.md y docs/plan-desarrollo.md todavía no existen.
+- Siguiente: Fase 1.
+
+## Comandos
+- Verificar entorno: ./tools/check-env.sh
+- Construir: sudo ./image/build.sh ubuntu-24.04
+- Probar: ./tests/qemu-boot-test.sh out/llevix-ubuntu-24.04.img
