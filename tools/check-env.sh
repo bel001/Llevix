@@ -194,6 +194,7 @@ revisar_imagen() {
 
     revisar_comando_apt qemu-system-x86_64 qemu-system-x86 "emulador QEMU"
     revisar_comando_apt qemu-img           qemu-utils      "manejo de discos virtuales"
+    revisar_comando_apt socat              socat           "habla con el monitor de QEMU"
 
     # Firmware UEFI con Secure Boot (OVMF) y BIOS antiguo (SeaBIOS).
     revisar_archivo_alguno "OVMF con Secure Boot (código)" ovmf \
