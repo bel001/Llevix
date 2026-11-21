@@ -138,7 +138,8 @@ probar_modo() {
         fi
         if grep -q "LLEVIX-ARRANQUE-FIN" "$serie" 2>/dev/null; then
             local linea modo_real gestor
-            linea="$(grep -m1 "^LLEVIX-ARRANQUE " "$serie" | tr -d '\r')"
+            # Sin "^": el firmware puede dejar códigos de pantalla antes del texto.
+            linea="$(grep -a -o -m1 'LLEVIX-ARRANQUE modo=[^ ]* gestor=[^ [:cntrl:]]*' "$serie" || true)"
             modo_real="$(sed -n 's/.*modo=\([^ ]*\).*/\1/p' <<<"$linea")"
             gestor="$(sed -n 's/.*gestor=\([^ ]*\).*/\1/p' <<<"$linea")"
             if [[ "$modo_real" != "$modo" ]]; then

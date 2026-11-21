@@ -26,6 +26,8 @@ fi
 gestor="$(systemctl is-active display-manager.service 2>/dev/null || true)"
 
 {
+    # Salto de línea inicial: el firmware deja códigos de pantalla en la línea actual.
+    echo
     echo "LLEVIX-ARRANQUE modo=$modo gestor=$gestor"
     echo "Unidades con fallo:"
     systemctl --failed --no-legend --plain 2>/dev/null || true
