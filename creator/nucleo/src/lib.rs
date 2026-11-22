@@ -7,6 +7,7 @@
 //! - [`bmap`]: lee el mapa `.bmap` (qué bloques de la imagen tienen datos).
 //! - [`escritura`]: descomprime zstd y escribe solo los bloques con datos, verificando.
 //! - [`gpt`] y [`esp`]: buscan la partición EFI y dejan `llevix-config.json` en ella.
+//! - [`crear`]: el proceso completo, con la tabla de particiones escrita al final.
 //! - [`config`]: arma y valida `llevix-config.json` (la contraseña solo como hash SHA-512).
 //! - [`disco`]: decide qué discos se pueden mostrar (solo USB, nunca el del sistema).
 //! - [`descarga`]: descarga con reanudación y verificación SHA256.
@@ -14,6 +15,7 @@
 
 pub mod bmap;
 pub mod config;
+pub mod crear;
 pub mod descarga;
 pub mod disco;
 pub mod error;

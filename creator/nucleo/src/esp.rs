@@ -162,7 +162,7 @@ mod pruebas {
     #[test]
     fn flujo_completo_con_disco_simulado() {
         use crate::bmap::{pruebas::crear_bmap, Bmap};
-        use crate::escritura::escribir_y_verificar;
+        use crate::crear::escribir_todo;
         use std::sync::atomic::AtomicBool;
 
         let imagen = disco_con_esp().into_inner();
@@ -174,10 +174,13 @@ mod pruebas {
         std::fs::write(archivo.path(), vec![0x5Au8; 64 * 1024 * 1024]).unwrap();
         let mut disco = std::fs::OpenOptions::new().read(true).write(true).open(archivo.path()).unwrap();
 
-        escribir_y_verificar(Cursor::new(zst), &bmap, &mut disco, &AtomicBool::new(false), &mut |_| {}).unwrap();
         let config = br#"{"version":1,"usuario":{"nombre":"ana"}}"#;
-        escribir_config(&mut disco, config).unwrap();
+        escribir_todo(Cursor::new(zst), &bmap, &mut disco, None, config, &AtomicBool::new(false), &mut |_, _, _| {})
+            .unwrap();
         assert_eq!(leer_config(&mut disco).unwrap(), config);
+        // Lo que no era de la imagen (después de su final) no se tocó.
+        let todo = std::fs::read(archivo.path()).unwrap();
+        assert!(todo[imagen.len()..].iter().all(|&b| b == 0x5A));
     }
 
     #[test]

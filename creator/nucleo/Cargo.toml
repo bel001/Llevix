@@ -18,5 +18,9 @@ sha-crypt = "0.5"
 thiserror = "1"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
 
+[features]
+# Solo para la prueba con un disco virtual (.vhdx) en GitHub Actions. Nunca en el creador.
+prueba-vhd = []
+
 [dev-dependencies]
 tempfile = "3"

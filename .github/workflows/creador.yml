@@ -7,11 +7,13 @@ on:
     paths:
       - 'creator/**'
       - 'tests/creador-e2e.sh'
+      - 'tests/vhd-prueba.ps1'
       - '.github/workflows/creador.yml'
   pull_request:
     paths:
       - 'creator/**'
       - 'tests/creador-e2e.sh'
+      - 'tests/vhd-prueba.ps1'
       - '.github/workflows/creador.yml'
   workflow_dispatch:
   # La publicación (release.yml) lo reutiliza solo para el instalador, sin la prueba e2e.
@@ -69,6 +71,10 @@ jobs:
 
       - name: Pruebas del núcleo en Windows (incluye discos reales en modo solo lectura)
         run: cargo test -p llevix-nucleo
+
+      - name: Escribir en un disco virtual (.vhdx) como lo hace el creador
+        shell: pwsh
+        run: ../tests/vhd-prueba.ps1
 
       - name: Instalar dependencias de la interfaz
         run: npm ci
