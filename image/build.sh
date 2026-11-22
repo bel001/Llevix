@@ -268,6 +268,9 @@ Pin-Priority: 1000
 EOF
 fi
 
+# Durante la construcción, apt reintenta las descargas (los espejos a veces fallan).
+echo 'Acquire::Retries "5";' > "$ROOT/etc/apt/apt.conf.d/80llevix-reintentos"
+
 # Durante la construcción no se arranca ningún servicio.
 printf '#!/bin/sh\nexit 101\n' > "$ROOT/usr/sbin/policy-rc.d"
 chmod +x "$ROOT/usr/sbin/policy-rc.d"
@@ -516,7 +519,7 @@ wc -l < "$OUT_DIR/llevix-$VARIANTE.paquetes.txt"
 
 paso "Limpiando"
 escribir_fuentes "$MIRROR_PUBLICO" "$MIRROR_SEGURIDAD"
-rm -f "$ROOT/usr/sbin/policy-rc.d"
+rm -f "$ROOT/usr/sbin/policy-rc.d" "$ROOT/etc/apt/apt.conf.d/80llevix-reintentos"
 en_chroot "apt-get clean"
 rm -rf "$ROOT"/var/lib/apt/lists/* "$ROOT"/tmp/* "$ROOT"/var/tmp/*
 # machine-id vacío: cada PC/arranque genera el suyo la primera vez.

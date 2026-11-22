@@ -119,6 +119,7 @@ if qemu_esperar_informe "$TIMEOUT"; then
     fi
 else
     falla "no arrancó en modo BIOS"
+    qemu_captura "$DIR_PRUEBAS/iso-$NOMBRE-bios.png"
     tail -n 40 "$QEMU_SERIE" || true
 fi
 qemu_matar

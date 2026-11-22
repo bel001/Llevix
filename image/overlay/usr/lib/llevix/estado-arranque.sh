@@ -34,7 +34,7 @@ primer_arranque="$(cut -d: -f1 /var/lib/llevix/firstboot-resultado 2>/dev/null |
 # instalada desde una ISO, sin agente de QEMU).
 # shellcheck source=/dev/null
 sistema="$(. /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-desconocido}")"
-usuarios="$(getent passwd | awk -F: '$3 >= 1000 && $3 < 60000 {print $1}' | paste -sd, -)"
+usuarios="$(getent passwd | awk -F: '$3 >= 1000 && $3 < 60000 {print $1}' | paste -sd, - || true)"
 red="sin-networkmanager"
 if command -v nmcli >/dev/null; then
     for _ in $(seq 30); do
@@ -44,12 +44,12 @@ if command -v nmcli >/dev/null; then
     done
 fi
 sonido="no"
-grep -q '\[' /proc/asound/cards 2>/dev/null && sonido="si"
+if grep -q '\[' /proc/asound/cards 2>/dev/null; then sonido="si"; fi
 navegador="no"
 for b in firefox /usr/lib/firefox/firefox chromium chromium-browser google-chrome brave-browser; do
-    command -v "$b" >/dev/null && { navegador="$b"; break; }
+    if command -v "$b" >/dev/null; then navegador="$b"; break; fi
 done
-datos="$(findmnt -rno TARGET -S LABEL=LLEVIX 2>/dev/null | head -n1)"
+datos="$(findmnt -rno TARGET -S LABEL=LLEVIX 2>/dev/null | head -n1 || true)"
 
 {
     # Salto de línea inicial: el firmware deja códigos de pantalla en la línea actual.

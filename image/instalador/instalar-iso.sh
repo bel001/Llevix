@@ -206,7 +206,34 @@ en_destino 'instalados="$(dpkg-query -W -f="\${Package}\n" | sort -u)"
     rm -f /tmp/quitar'
 
 paso "Kernel e initramfs"
-version="$(find "$D/lib/modules/" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -V | tail -n1)"
+version_kernel() {
+    find "$D/usr/lib/modules/" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort -V | tail -n1 || true
+}
+version="$(version_kernel)"
+if [[ -z "$version" ]]; then
+    # Ubuntu 24.04+ instala el kernel aparte, desde los paquetes que trae la propia ISO
+    # (carpetas dists/ y pool/). Se hace igual, sin internet.
+    echo "El sistema de la ISO no trae kernel: se instala desde los paquetes de la ISO."
+    suite="$(find "$T/iso/dists" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | head -n1)"
+    [[ -n "$suite" && -d "$T/iso/pool" ]] || fallar "la ISO no trae kernel ni paquetes para instalarlo"
+    mkdir -p "$D/media/llevix-iso"
+    monta "$T/iso" "$D/media/llevix-iso" --bind
+    componentes="$(find "$T/iso/dists/$suite" -mindepth 1 -maxdepth 1 -type d -printf '%f ' 2>/dev/null)"
+    echo "deb [trusted=yes] file:///media/llevix-iso $suite ${componentes:-main restricted}" > "$D/tmp/llevix-iso.list"
+    solo_iso="-o Dir::Etc::sourcelist=/tmp/llevix-iso.list -o Dir::Etc::sourceparts=/nonexistent -o APT::Get::List-Cleanup=0"
+    en_destino "apt-get $solo_iso update" || fallar "no se pudieron leer los paquetes de la ISO"
+    # El kernel que pide la ISO (install-sources.yaml) o, si no lo dice, el genérico (HWE primero).
+    meta="$(grep -Eo 'linux-generic(-hwe-[0-9.]+)?' "$T/iso/casper/install-sources.yaml" 2>/dev/null | head -n1 || true)"
+    if [[ -z "$meta" ]]; then
+        meta="$(en_destino "apt-cache $solo_iso pkgnames linux-generic" | grep -E '^linux-generic(-hwe-[0-9.]+)?$' | sort -r | head -n1 || true)"
+    fi
+    [[ -n "$meta" ]] || fallar "la ISO no trae un paquete de kernel"
+    echo "Instalando $meta desde la ISO"
+    en_destino "apt-get $solo_iso -y --no-install-recommends install $meta" || fallar "no se pudo instalar el kernel desde la ISO"
+    rm -f "$D/tmp/llevix-iso.list"
+    umount -l "$D/media/llevix-iso" && rmdir "$D/media/llevix-iso" || true
+    version="$(version_kernel)"
+fi
 [[ -n "$version" ]] || fallar "la ISO no trae módulos del kernel"
 [[ -f "$D/boot/vmlinuz-$version" ]] || cp "$kernel" "$D/boot/vmlinuz-$version"
 ln -sf "vmlinuz-$version" "$D/boot/vmlinuz"
