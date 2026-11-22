@@ -27,6 +27,10 @@ MIRROR_SEGURIDAD="http://security.ubuntu.com/ubuntu"
 MINT_REPO="http://packages.linuxmint.com"
 MINT_LLAVE_URL="$MINT_REPO/pool/main/l/linuxmint-keyring/linuxmint-keyring_2022.06.21_all.deb"
 MINT_LLAVE_SHA256="b71be690c543112ea7b65f43e9bbce9a3f17dd5cc784074858f0824154942a99"
+# Repositorio oficial de Mozilla para Firefox en las variantes de Ubuntu (allí Ubuntu solo
+# ofrece Firefox como snap, que no se puede instalar al construir la imagen).
+MOZILLA_REPO="https://packages.mozilla.org/apt"
+MOZILLA_HUELLA="35BAA0B33E9EB396F59CA838C0BA5CE6DC6315A3"
 OPC_BTRFS="compress=zstd:3,noatime"
 
 LOOP=""
@@ -170,9 +174,25 @@ poner_dns() {
 }
 poner_dns
 
-# Fuentes de apt (formato deb822 de Ubuntu 24.04).
+# Fuentes de apt. En Ubuntu: formato deb822 (ubuntu.sources). En Mint, una vez instalada
+# su llave: el archivo y formato que usa Linux Mint (official-package-repositories.list);
+# si no, su Gestor de actualizaciones dice que la configuración de APT está corrupta.
 escribir_fuentes() {
     rm -f "$ROOT/etc/apt/sources.list"
+    if [[ "$BASE" == "mint" && -f "$ROOT/etc/apt/trusted.gpg.d/linuxmint-keyring.gpg" ]]; then
+        rm -f "$ROOT/etc/apt/sources.list.d/ubuntu.sources" "$ROOT/etc/apt/sources.list.d/linuxmint.sources"
+        : > "$ROOT/etc/apt/sources.list"
+        cat > "$ROOT/etc/apt/sources.list.d/official-package-repositories.list" <<EOF
+deb $MINT_REPO $MINT_SUITE main upstream import backport
+
+deb $1 $SUITE main restricted universe multiverse
+deb $1 $SUITE-updates main restricted universe multiverse
+deb $1 $SUITE-backports main restricted universe multiverse
+
+deb $2 $SUITE-security main restricted universe multiverse
+EOF
+        return 0
+    fi
     cat > "$ROOT/etc/apt/sources.list.d/ubuntu.sources" <<EOF
 Types: deb
 URIs: $1
@@ -197,18 +217,42 @@ if [[ "$BASE" == "mint" ]]; then
     # La llave necesita gnupg instalado antes. El paquete trae dos llaveros: el
     # vigente es el de /etc/apt/trusted.gpg.d (el de /usr/share/keyrings es de 2016).
     en_chroot "apt-get update && apt-get -y install gnupg && dpkg -i /tmp/linuxmint-keyring.deb && rm /tmp/linuxmint-keyring.deb"
-    cat > "$ROOT/etc/apt/sources.list.d/linuxmint.sources" <<EOF
-Types: deb
-URIs: $MINT_REPO
-Suites: $MINT_SUITE
-Components: main upstream import backport
-Signed-By: /etc/apt/trusted.gpg.d/linuxmint-keyring.gpg
-EOF
-    # Como en Linux Mint: sus paquetes tienen prioridad sobre los de Ubuntu.
-    cat > "$ROOT/etc/apt/preferences.d/llevix-linuxmint.pref" <<'EOF'
+    escribir_fuentes "$MIRROR" "$MIRROR_SEGURIDAD"
+    # Las mismas prioridades que trae Linux Mint.
+    cat > "$ROOT/etc/apt/preferences.d/official-package-repositories.pref" <<'EOF'
 Package: *
-Pin: origin packages.linuxmint.com
+Pin: origin live.linuxmint.com
+Pin-Priority: 750
+
+Package: *
+Pin: release o=linuxmint,c=upstream
 Pin-Priority: 700
+
+Package: *
+Pin: release o=LP-PPA-mozillateam
+Pin-Priority: 200
+EOF
+fi
+
+if [[ "$BASE" == "ubuntu" ]]; then
+    paso "Agregando el repositorio oficial de Mozilla (Firefox)"
+    mkdir -p "$ROOT/etc/apt/keyrings"
+    curl -fsSL --retry 3 -o "$ROOT/etc/apt/keyrings/packages.mozilla.org.asc" "$MOZILLA_REPO/repo-signing-key.gpg"
+    huella="$(GNUPGHOME="$(mktemp -d)" gpg --show-keys --with-colons \
+        "$ROOT/etc/apt/keyrings/packages.mozilla.org.asc" | awk -F: '$1 == "fpr" {print $10; exit}')"
+    [[ "$huella" == "$MOZILLA_HUELLA" ]] || error "la llave de Mozilla no tiene la huella esperada ($huella)"
+    cat > "$ROOT/etc/apt/sources.list.d/mozilla.sources" <<EOF
+Types: deb
+URIs: $MOZILLA_REPO
+Suites: mozilla
+Components: main
+Signed-By: /etc/apt/keyrings/packages.mozilla.org.asc
+EOF
+    # Firefox de Mozilla por encima del paquete de Ubuntu (que solo instala el snap).
+    cat > "$ROOT/etc/apt/preferences.d/mozilla" <<'EOF'
+Package: *
+Pin: origin packages.mozilla.org
+Pin-Priority: 1000
 EOF
 fi
 
@@ -216,12 +260,11 @@ fi
 printf '#!/bin/sh\nexit 101\n' > "$ROOT/usr/sbin/policy-rc.d"
 chmod +x "$ROOT/usr/sbin/policy-rc.d"
 
-# Firefox y Thunderbird de Ubuntu 24.04 son paquetes que instalan un snap, y eso no
-# funciona dentro de un chroot. Se excluyen por ahora (ver docs/planes/fase-1.md).
-# Linux Mint los trae como paquetes .deb normales: ahí no se excluyen.
+# Thunderbird de Ubuntu 24.04 es un paquete que instala un snap, y eso no funciona
+# dentro de un chroot: se excluye. Firefox viene del repositorio de Mozilla.
 if [[ "$BASE" == "ubuntu" ]]; then
     cat > "$ROOT/etc/apt/preferences.d/llevix-sin-snaps-transicionales" <<'EOF'
-Package: firefox thunderbird
+Package: thunderbird
 Pin: version *
 Pin-Priority: -1
 EOF
@@ -255,10 +298,60 @@ en_chroot "apt-get -y install linux-generic linux-firmware \
     shim-signed grub-efi-amd64-signed grub-efi-amd64-bin grub-pc-bin grub2-common \
     sudo locales tzdata jq gdisk qemu-guest-agent sg3-utils hdparm"
 
-paso "Instalando escritorio: $PAQUETES_ESCRITORIO"
 poner_dns
-# shellcheck disable=SC2086  # la lista de paquetes se separa a propósito
-en_chroot "apt-get -y install $PAQUETES_ESCRITORIO ${PAQUETES_IDIOMA:-}"
+LISTA="$DIR_IMAGE/distros/paquetes/$VARIANTE.txt"
+if [[ -f "$LISTA" ]]; then
+    # La misma lista de paquetes que instala la ISO oficial (tools/manifiesto-iso.sh).
+    # Se quitan los que ya no existen en el repositorio y se anotan.
+    paso "Instalando escritorio: los $(wc -l < "$LISTA") paquetes de la ISO oficial"
+    en_chroot "apt-cache pkgnames | sort -u" > "$ROOT/tmp/disponibles"
+    LC_ALL=C sort -u "$LISTA" | LC_ALL=C comm -12 - "$ROOT/tmp/disponibles" > "$ROOT/tmp/lista"
+    faltan_lista="$(LC_ALL=C sort -u "$LISTA" | LC_ALL=C comm -23 - "$ROOT/tmp/disponibles" | tr '\n' ' ')"
+    [[ -z "$faltan_lista" ]] || echo "Aviso: ya no están en el repositorio: $faltan_lista"
+    en_chroot "xargs -a /tmp/lista apt-get -y install"
+    # Los que no aparecieron en el índice se intentan uno por uno (algunos son nombres
+    # virtuales o ya vienen como dependencia); los que de verdad no existen se ignoran.
+    for p in $faltan_lista; do
+        en_chroot "apt-get -y install $p >/dev/null 2>&1" && echo "  instalado igual: $p" || true
+    done
+    rm -f "$ROOT/tmp/lista" "$ROOT/tmp/disponibles"
+else
+    paso "Instalando escritorio: $PAQUETES_ESCRITORIO"
+    # shellcheck disable=SC2086  # la lista de paquetes se separa a propósito
+    en_chroot "apt-get -y install $PAQUETES_ESCRITORIO"
+fi
+NAVEGADOR=""
+[[ "$BASE" == "ubuntu" ]] && NAVEGADOR="firefox firefox-l10n-es-es firefox-l10n-es-mx firefox-l10n-es-ar"
+en_chroot "apt-get -y install ${PAQUETES_IDIOMA:-} $NAVEGADOR"
+
+# Lo que cualquier usuario necesita desde el primer minuto. Si falta algo, la
+# construcción falla (así no se publica una imagen sin red, sonido o navegador).
+paso "Comprobando que el escritorio está completo"
+# shellcheck disable=SC2016  # las variables se expanden dentro del chroot
+en_chroot '
+falta=""
+instalado() { dpkg-query -W -f="\${Status}" "$1" 2>/dev/null | grep -q "install ok installed"; }
+alguno() { for p in "$@"; do instalado "$p" && return 0; done; return 1; }
+alguno network-manager            || falta="$falta red(network-manager)"
+alguno wpasupplicant              || falta="$falta wifi(wpasupplicant)"
+alguno network-manager-gnome plasma-nm nm-tray gnome-shell || falta="$falta icono-de-red"
+alguno pipewire-pulse pulseaudio  || falta="$falta sonido"
+alguno wireplumber pulseaudio     || falta="$falta sonido(sesion)"
+test -x /usr/lib/firefox/firefox  || falta="$falta navegador(firefox)"
+test -e /etc/alternatives/x-terminal-emulator || falta="$falta terminal"
+alguno nautilus dolphin thunar pcmanfm-qt nemo caja || falta="$falta archivos"
+if [ -n "$falta" ]; then echo "Faltan componentes básicos:$falta" >&2; exit 1; fi
+echo "Escritorio completo: red, wifi, sonido, navegador, terminal y archivos."
+'
+
+if [[ "$BASE" == "ubuntu" && "$GESTOR_SESION" == "gdm3" ]]; then
+    # El panel de Ubuntu apunta al Firefox snap (firefox_firefox.desktop): se apunta al de Mozilla.
+    cat > "$ROOT/usr/share/glib-2.0/schemas/90_llevix.gschema.override" <<'EOF'
+[org.gnome.shell:ubuntu]
+favorite-apps = ['firefox.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.TextEditor.desktop', 'org.gnome.Software.desktop', 'yelp.desktop']
+EOF
+    en_chroot "glib-compile-schemas /usr/share/glib-2.0/schemas"
+fi
 
 # ---------- 4. Configuración del sistema ----------
 

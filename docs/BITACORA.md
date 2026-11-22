@@ -2,6 +2,30 @@
 
 Lo más reciente arriba. Cada fase anota qué se hizo, qué se decidió y qué quedó pendiente.
 
+## Beta — Escritorio completo (2026-11-22)
+
+**Problema reportado por el dueño** (Mint, en otras PCs): sin WiFi, sin sonido, sin
+navegador y "la configuración de APT está corrupta".
+
+**Causas**
+- Mint MATE/Xfce se armaban con `mint-meta-*`, que no incluye red ni sonido (la ISO de
+  Mint los agrega por otro lado). Ninguna variante traía navegador.
+- Los repositorios de Mint estaban en formato Ubuntu; el Gestor de actualizaciones de
+  Mint exige `official-package-repositories.list`.
+- Las pruebas solo miraban que apareciera la pantalla de inicio de sesión.
+
+**Arreglo**
+- Mint se instala con la lista de paquetes de su ISO oficial (`tools/manifiesto-iso.sh`,
+  workflow `manifiestos`, `image/distros/paquetes/`), con repositorios y prioridades
+  iguales a los de Mint.
+- Firefox (en español) del repositorio oficial de Mozilla en las variantes de Ubuntu;
+  Xubuntu pasa a `xubuntu-desktop` completo; Ubuntu suma `gnome-software`.
+- `build.sh` falla si falta red, WiFi, icono de red, sonido, navegador, terminal o archivos.
+- QEMU con tarjeta de sonido; nuevas comprobaciones: red conectada, sonido, Firefox,
+  `apt-get update` sin errores y formato de Mint. Las 7 variantes en verde.
+
+**Decidido**: A + B (más distros y "Trae tu ISO"), ver docs/planes/catalogo-e-iso-propia.md.
+
 ## Fase 6 — Preparación de la beta (2026-11-21)
 
 **Qué se hizo**

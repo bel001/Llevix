@@ -46,6 +46,10 @@ El piloto automático se detuvo aquí: lo que sigue necesita personas y PCs real
 - [ ] Borrar los Releases de prueba `v0.0.1-test` y `v0.0.2-test` cuando ya no sirvan.
 - [ ] Por cada issue, decirle a Claude Code: "revisa el issue #N y corrígelo".
 
+- [ ] **Volver a crear tu USB** con la versión v0.0.4-test (la anterior no tenía red,
+      sonido ni navegador en Mint) y probar en las otras PCs: WiFi, sonido, Firefox y el
+      Gestor de actualizaciones.
+
 ## Decisiones abiertas
 - [ ] Licencia: GPL-3.0 (recomendada) o MIT — decidir antes de la beta
 - [ ] Confirmar que "Llevix" está libre como marca, dominio y en redes
@@ -55,6 +59,4 @@ El piloto automático se detuvo aquí: lo que sigue necesita personas y PCs real
       escritorio"). La regla de marcas pide no usarlos como marca del producto. ¿Se quitan
       (fondo y logo neutros de Llevix) o se dejan? Llevix ya cambia GRUB, el nombre del
       sistema y la pantalla de arranque.
-- [ ] Firefox en las variantes de Ubuntu: Ubuntu lo trae como snap y no se puede instalar
-      dentro de la imagen. Opciones: (a) sembrarlo como snap para que se instale solo en el
-      primer arranque con internet, (b) usar el .deb del PPA de Mozilla, (c) dejarlo sin navegador.
+- [x] Firefox: resuelto (repositorio oficial de Mozilla en Ubuntu, el de Mint en Mint).

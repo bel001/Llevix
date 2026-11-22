@@ -43,9 +43,9 @@ falla() { printf '  \e[31m[falla]\e[0m %s\n' "$*"; fallos=$((fallos + 1)); }
 # Procesos de la pantalla de inicio de sesión de cada escritorio.
 SALUDO="slick-greeter|unity-greeter|lightdm-gtk-greeter|sddm-greeter|gnome-shell"
 
-comprobar() {  # comprobar <descripción> <comando sh dentro de Llevix>
+comprobar() {  # comprobar <descripción> <comando sh dentro de Llevix> [segundos]
     # Sin $(...): la conexión con el agente no está disponible dentro de un subshell.
-    if qga_ejecutar "$2" > "$TRABAJO/salida.txt" 2>&1; then
+    if qga_ejecutar "$2" "${3:-120}" > "$TRABAJO/salida.txt" 2>&1; then
         ok "$1"
     else
         falla "$1"
@@ -91,6 +91,12 @@ if qemu_esperar_informe "$TIMEOUT" && qga_esperar 120; then
     comprobar "Datos está montado como exFAT" "findmnt -no FSTYPE /home/$USUARIO/Datos | grep -q exfat"
     comprobar "el usuario puede escribir en Datos" \
         "su $USUARIO -c 'touch /home/$USUARIO/Datos/.prueba-escritura && rm /home/$USUARIO/Datos/.prueba-escritura'"
+    # Lo que el usuario necesita apenas entra: red, sonido, navegador y actualizaciones.
+    comprobar "la red conecta (NetworkManager)"         "for i in \$(seq 30); do nmcli -t -f STATE general | grep -q '^connected' && exit 0; sleep 2; done; nmcli general; exit 1"
+    comprobar "hay tarjeta de sonido y servidor de sonido para la sesión"         "grep -q '\[' /proc/asound/cards && { systemctl --global is-enabled -q pipewire.socket || systemctl --global is-enabled -q pulseaudio.socket; }"
+    comprobar "Firefox funciona" "/usr/lib/firefox/firefox --version"
+    comprobar "las actualizaciones (apt) funcionan sin errores"         "apt-get update > /tmp/apt.log 2>&1; r=\$?; cat /tmp/apt.log | tail -5; test \$r -eq 0 && ! grep -Eq '^(E|W):' /tmp/apt.log" 300
+    comprobar "en Mint, los repositorios tienen el formato de Mint"         "! grep -qi mint /etc/os-release /etc/lsb-release 2>/dev/null || { test -f /etc/apt/sources.list.d/official-package-repositories.list && ! test -e /etc/apt/sources.list.d/ubuntu.sources; }"
     comprobar "se crean archivos para la prueba de persistencia" \
         "echo persistente > /home/$USUARIO/Datos/persistencia.txt && echo persistente > /home/$USUARIO/persistencia.txt && sync"
 else

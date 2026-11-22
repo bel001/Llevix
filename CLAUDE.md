@@ -18,6 +18,7 @@ Idioma del proyecto: español (código comentado, mensajes al usuario, documenta
 - firstboot: servicio systemd que en el primer arranque lee llevix-config.json, crea el
   usuario, aplica idioma y zona horaria, amplía la partición de datos y borra el archivo.
 - Llevix NO instala Linux desde Windows: escribe una imagen ya construida y probada.
+  Con "Trae tu ISO" (fase 8) la instalación de la ISO ocurre en Linux, en el propio disco.
 
 ## Distribuciones (las elige el usuario)
 - Llevix NO cambia el escritorio: cada variante se entrega como la distro la trae.
@@ -93,8 +94,10 @@ Idioma del proyecto: español (código comentado, mensajes al usuario, documenta
   .exe/.msi, prueba e2e con QEMU). Pendiente humano: crear un USB real (PENDIENTES.md).
 - Fase 6: preparada (report.sh, plantillas de issues, docs/BETA.md, README). El piloto
   automático se detuvo: siguen tareas humanas de la beta (PENDIENTES.md).
-- Siguiente paso: atender issues de la beta ("revisa el issue #N y corrígelo") y, con las
-  decisiones de PENDIENTES.md tomadas, publicar v0.1.0-beta.1.
+- Beta: arreglado "escritorio completo" (red, sonido, Firefox y repositorios de Mint;
+  Mint con la lista de su ISO oficial). Versión de prueba v0.0.4-test.
+- Decidido A + B: catálogo más grande y "Trae tu ISO" (docs/planes/catalogo-e-iso-propia.md).
+- Siguiente paso: fase 8 (prompts/fase-8-iso-propia.md), luego fase 9 (prompts/fase-9-catalogo.md).
 - Herramientas locales: shellcheck con Docker
   (`MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W)":/mnt -w /mnt koalaman/shellcheck:stable -x <archivos>`).
 

@@ -4,7 +4,7 @@ name: build
 
 on:
   push:
-    branches: [main, 'fase-*']
+    branches: [main, 'fase-*', 'beta-*']
     paths:
       - 'image/**'
       - 'tests/**'
