@@ -1,0 +1,21 @@
+# "Trae tu ISO": instala en el disco la distro de la ISO que dejó el creador.
+[Unit]
+Description=Llevix: instalar la ISO elegida
+After=local-fs.target systemd-udev-settle.service
+Wants=systemd-udev-settle.service
+Conflicts=getty@tty1.service
+Before=getty@tty1.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/llevix/instalar-iso.sh
+StandardInput=tty
+StandardOutput=tty
+StandardError=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TimeoutStartSec=infinity
+
+[Install]
+WantedBy=multi-user.target

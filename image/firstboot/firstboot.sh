@@ -27,6 +27,9 @@ RESPALDO="$DIR_ESTADO/firstboot-respaldo"
 
 DESHACER=()   # comandos para deshacer, en orden de ejecución
 
+# jq de la distro o, si no lo trae (distros instaladas desde una ISO), el que deja Llevix.
+JQ="$(command -v jq || echo /usr/lib/llevix/jq)"
+
 log() { echo "llevix-firstboot: $*"; }
 
 en_pantalla() {
@@ -36,10 +39,26 @@ en_pantalla() {
     fi
 }
 
+# Si Llevix se instaló desde una ISO, borra el sistema instalador que quedó guardado.
+borrar_instalador() {
+    command -v btrfs >/dev/null || return 0
+    local raiz_dev tope
+    raiz_dev="$(findmnt -no SOURCE / | sed 's/\[.*\]$//')"
+    tope="$(mktemp -d)"
+    if mount -o subvolid=5 "$raiz_dev" "$tope" 2>/dev/null; then
+        if [[ -d "$tope/@llevix-instalador" ]]; then
+            btrfs -q subvolume delete "$tope/@llevix-instalador" && log "se borró el instalador de ISO"
+        fi
+        umount "$tope"
+    fi
+    rmdir "$tope"
+}
+
 marcar_hecho() {
     mkdir -p "$DIR_ESTADO"
     touch "$HECHO"
     systemctl disable llevix-firstboot.service >/dev/null 2>&1 || true
+    borrar_instalador || true
 }
 
 deshacer() {
@@ -113,19 +132,19 @@ fi
 
 en_pantalla "Llevix: preparando tu cuenta…"
 
-jq -e 'type == "object"' "$CONFIG" >/dev/null 2>&1 || fallar "llevix-config.json no es un JSON válido"
+"$JQ" -e 'type == "object"' "$CONFIG" >/dev/null 2>&1 || fallar "llevix-config.json no es un JSON válido"
 
 # texto <ruta jq> <por defecto> → imprime el valor; devuelve error si existe y no es texto.
 # (Se usa dentro de $(...), así que no puede llamar a "fallar" directamente.)
 texto() {
-    case "$(jq -r "$1 | type" "$CONFIG")" in
-        string) jq -r "$1" "$CONFIG" ;;
+    case "$("$JQ" -r "$1 | type" "$CONFIG")" in
+        string) "$JQ" -r "$1" "$CONFIG" ;;
         null)   printf '%s' "$2" ;;
         *)      return 1 ;;
     esac
 }
 
-[[ "$(jq -r '.version' "$CONFIG")" == "1" ]] || fallar "versión de configuración no soportada"
+[[ "$("$JQ" -r '.version' "$CONFIG")" == "1" ]] || fallar "versión de configuración no soportada"
 
 usuario="$(texto .usuario.nombre "")"                    || fallar "usuario.nombre debe ser texto"
 nombre_completo="$(texto .usuario.nombre_completo "")"   || fallar "usuario.nombre_completo debe ser texto"
@@ -137,7 +156,7 @@ variante="$(texto .teclado.variante "")"                 || fallar "teclado.vari
 nombre_equipo="$(texto .hostname "llevix")"              || fallar "hostname debe ser texto"
 
 for campo in lector_pantalla texto_grande; do
-    case "$(jq -r ".accesibilidad.$campo | type" "$CONFIG")" in
+    case "$("$JQ" -r ".accesibilidad.$campo | type" "$CONFIG")" in
         boolean|null) ;;
         *) fallar "accesibilidad.$campo debe ser true o false" ;;
     esac
@@ -195,7 +214,9 @@ contenido="$(find "$punto_tmp" -mindepth 1 -maxdepth 1 ! -name 'System Volume In
 umount "$punto_tmp"
 rmdir "$punto_tmp"
 
-if [[ -z "$contenido" ]]; then
+if [[ -f "$DIR_ESTADO/datos-ampliados" ]]; then
+    log "LLEVIX-DATOS ya fue ampliada por el instalador de ISO"
+elif [[ -z "$contenido" ]]; then
     log "ampliando LLEVIX-DATOS en $disco"
     en_pantalla "Llevix: ampliando el espacio para tus archivos…"
     # Mueve la copia de respaldo de la tabla GPT al final real del disco.
