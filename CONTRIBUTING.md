@@ -54,9 +54,10 @@ al construir imágenes.
 
 ## 5. Licencias y marcas
 
-- La licencia del proyecto (GPL-3.0 o MIT) está pendiente. Mientras tanto:
-  no copies código GPL de otros proyectos y usa solo dependencias compatibles
-  con ambas licencias (por ejemplo MIT, BSD, Apache-2.0).
+- Llevix usa la licencia **MIT** (ver [LICENSE](LICENSE)). Al contribuir, aceptas que
+  tu aporte se publique bajo esa licencia.
+- No copies código GPL de otros proyectos dentro del repositorio, y usa dependencias
+  con licencias compatibles con MIT (MIT, BSD, Apache-2.0, ISC…).
 - No uses los logos ni los nombres "Ubuntu" o "Linux Mint" como marca del
   producto. Escribe "Llevix, basado en Ubuntu".
 

@@ -55,7 +55,7 @@ El piloto automático se detuvo aquí: lo que sigue necesita personas y PCs real
       8 GB). El primer arranque tarda 5 a 15 minutos instalando y se reinicia solo.
 
 ## Decisiones abiertas
-- [ ] Licencia: GPL-3.0 (recomendada) o MIT — decidir antes de la beta
+- [x] Licencia: MIT (decidido el 2026-11-22; archivo LICENSE)
 - [ ] Confirmar que "Llevix" está libre como marca, dominio y en redes
 - [ ] Firma del instalador de Windows: SignPath Foundation, certificado OV o sin firma
 - [ ] Logos de las distros: hoy la pantalla de inicio de sesión y el fondo muestran los
