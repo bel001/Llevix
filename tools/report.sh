@@ -66,15 +66,15 @@ anonimizar() {
     fi
 
     seccion "CPU y memoria"
-    ejecutar lscpu | grep -E '^(Model name|Architecture|CPU\(s\)|Thread|Core|Vendor ID)'
+    ejecutar lscpu | grep -E '^(Model name|Architecture|CPU\(s\)|Thread|Core|Vendor ID)' || true
     ejecutar free -h
 
     seccion "Gráficos"
-    ejecutar lspci -nnk | grep -A3 -E 'VGA|3D|Display'
+    ejecutar lspci -nnk | grep -A3 -E 'VGA|3D|Display' || true
     echo "Sesión: ${XDG_SESSION_TYPE:-desconocida}  Escritorio: ${XDG_CURRENT_DESKTOP:-desconocido}"
 
     seccion "Red (chips y controladores)"
-    ejecutar lspci -nnk | grep -A3 -E 'Network|Ethernet'
+    ejecutar lspci -nnk | grep -A3 -E 'Network|Ethernet' || true
     ejecutar lsusb
     ejecutar rfkill list
 

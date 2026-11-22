@@ -340,6 +340,11 @@ EOF
 
 paso "Instalando kernel, firmware y cargadores de arranque"
 en_chroot "apt-get update && apt-get -y full-upgrade"
+if [[ "$BASE" == "debian" ]]; then
+    # Como en Ubuntu: enlaces /boot/vmlinuz e /boot/initrd.img al kernel actual (los usan
+    # el modo gráficos seguros y los estados guardados).
+    printf 'do_symlinks = yes\nlink_in_boot = yes\n' > "$ROOT/etc/kernel-img.conf"
+fi
 en_chroot "apt-get -y install $KERNEL \
     btrfs-progs exfatprogs dosfstools \
     shim-signed grub-efi-amd64-signed grub-efi-amd64-bin grub-pc-bin grub2-common \
@@ -552,7 +557,13 @@ rm -rf "$ROOT"/var/lib/apt/lists/* "$ROOT"/tmp/* "$ROOT"/var/tmp/*
 : > "$ROOT/etc/machine-id"
 rm -f "$ROOT/var/lib/dbus/machine-id"
 ln -sf /etc/machine-id "$ROOT/var/lib/dbus/machine-id"
-ln -sf ../run/systemd/resolve/stub-resolv.conf "$ROOT/etc/resolv.conf"
+if [[ -e "$ROOT/usr/lib/systemd/systemd-resolved" || -e "$ROOT/lib/systemd/systemd-resolved" ]]; then
+    ln -sf ../run/systemd/resolve/stub-resolv.conf "$ROOT/etc/resolv.conf"
+else
+    # Sin systemd-resolved (Debian): NetworkManager escribe /etc/resolv.conf directamente.
+    rm -f "$ROOT/etc/resolv.conf"
+    : > "$ROOT/etc/resolv.conf"
+fi
 
 df -h "$ROOT" "$ROOT/boot/efi"
 # fstrim libera en el archivo los bloques vacíos: la imagen ocupa solo lo que usa.
