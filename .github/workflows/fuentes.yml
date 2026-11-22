@@ -87,6 +87,8 @@ jobs:
           cd "$DIR"
           nombre="llevix-fuentes-$BASE"
           cp codigo/faltantes.txt "$nombre.faltantes.txt"
+          # GitHub no acepta archivos vacíos.
+          [[ -s "$nombre.faltantes.txt" ]] || echo "Ninguno: se obtuvo el código fuente de todos los paquetes." > "$nombre.faltantes.txt"
           # Un solo .tar (el código ya viene comprimido), cortado en partes de menos de
           # 2 GiB sin ocupar el doble de espacio.
           tar -cf - -C codigo . | split -b 1900M -d -a 3 --numeric-suffixes=1 - "$nombre.tar."
