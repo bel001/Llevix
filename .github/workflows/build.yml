@@ -46,6 +46,9 @@ jobs:
           - mint-22-cinnamon
           - mint-22-mate
           - mint-22-xfce
+          - debian-13-gnome
+          - debian-13-kde
+          - debian-13-xfce
     env:
       SALIDA: /mnt/llevix
       LLEVIX_MIRROR: http://azure.archive.ubuntu.com/ubuntu
@@ -61,8 +64,8 @@ jobs:
       - name: Instalar herramientas
         run: |
           sudo apt-get update
-          sudo apt-get install -y debootstrap gdisk dosfstools exfatprogs btrfs-progs \
-            zstd bmap-tools qemu-system-x86 qemu-utils ovmf seabios socat mtools jq openssl
+          sudo apt-get install -y debootstrap debian-archive-keyring gdisk dosfstools exfatprogs \
+            btrfs-progs zstd bmap-tools qemu-system-x86 qemu-utils ovmf seabios socat mtools jq openssl
 
       - name: Construir imagen
         id: construir
@@ -112,6 +115,143 @@ jobs:
           cd "$SALIDA"
           zstd -T0 -9 --rm "llevix-${{ matrix.variante }}.img"
           sha256sum "llevix-${{ matrix.variante }}.img.zst" > "llevix-${{ matrix.variante }}.img.zst.sha256"
+          ls -lh
+
+      - name: Guardar imagen
+        uses: actions/upload-artifact@v5
+        with:
+          name: llevix-${{ matrix.variante }}.img.zst
+          path: |
+            ${{ env.SALIDA }}/llevix-${{ matrix.variante }}.img.zst
+            ${{ env.SALIDA }}/llevix-${{ matrix.variante }}.img.zst.sha256
+            ${{ env.SALIDA }}/llevix-${{ matrix.variante }}.img.bmap
+            ${{ env.SALIDA }}/llevix-${{ matrix.variante }}.img.tamano
+            ${{ env.SALIDA }}/llevix-${{ matrix.variante }}.paquetes.txt
+          compression-level: 0
+          retention-days: 14
+
+      - name: Guardar registros y capturas
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: registros-${{ matrix.variante }}
+          path: |
+            ${{ env.SALIDA }}/build.log
+            ${{ env.SALIDA }}/pruebas/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # ---------- Variantes que se construyen desde su ISO oficial (fase 9) ----------
+
+  base-instalador:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      SALIDA: /mnt/llevix
+      LLEVIX_MIRROR: http://azure.archive.ubuntu.com/ubuntu
+    steps:
+      - uses: actions/checkout@v5
+      - name: Preparar
+        run: |
+          sudo mkdir -p "$SALIDA" && sudo chown "$USER" "$SALIDA"
+          sudo apt-get update
+          sudo apt-get install -y debootstrap gdisk dosfstools exfatprogs btrfs-progs zstd
+      - name: Construir la imagen del instalador
+        run: sudo --preserve-env=LLEVIX_MIRROR LLEVIX_OUT="$SALIDA" ./image/build.sh instalador 2>&1 | tee "$SALIDA/build.log"
+      - name: Comprimir
+        run: cd "$SALIDA" && zstd -T0 -3 --rm llevix-instalador.img && ls -lh
+      - uses: actions/upload-artifact@v5
+        with:
+          name: base-instalador
+          path: ${{ env.SALIDA }}/llevix-instalador.img.zst
+          compression-level: 0
+          retention-days: 3
+
+  desde-iso:
+    name: imagen (${{ matrix.variante }})
+    needs: base-instalador
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        variante:
+          - zorin-18
+    env:
+      SALIDA: /mnt/llevix
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Espacio en disco
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          sudo mkdir -p "$SALIDA" && sudo chown "$USER" "$SALIDA"
+          df -h / /mnt
+
+      - name: Instalar herramientas
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdisk btrfs-progs zstd bmap-tools qemu-system-x86 qemu-utils \
+            ovmf seabios socat mtools jq openssl
+
+      - uses: actions/download-artifact@v5
+        with:
+          name: base-instalador
+          path: ${{ env.SALIDA }}
+
+      - name: Descargar y verificar la ISO oficial
+        run: |
+          source "image/distros/${{ matrix.variante }}.conf"
+          cd "$SALIDA"
+          zstd -d --rm --sparse llevix-instalador.img.zst
+          archivo="$(basename "$ISO_URL")"
+          curl -fsSL -o sumas.txt "$ISO_SUMAS"
+          curl -fsSL --retry 3 -o "$archivo" "$ISO_URL"
+          grep "[ *]$archivo\$" sumas.txt | sed 's/ \*/  /' | sha256sum -c -
+          echo "ISO=$SALIDA/$archivo" >> "$GITHUB_ENV"
+
+      - name: Construir imagen desde la ISO
+        id: construir
+        run: |
+          sudo LLEVIX_OUT="$SALIDA" ./image/desde-iso.sh "${{ matrix.variante }}" \
+            "$SALIDA/llevix-instalador.img" "$ISO" 2>&1 | tee "$SALIDA/build.log"
+          sudo chown -R "$USER" "$SALIDA"
+          rm -f "$ISO" "$SALIDA/llevix-instalador.img"
+
+      - name: Activar KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo udevadm settle
+          sudo chmod 0666 /dev/kvm
+
+      - name: Probar arranque en QEMU
+        env:
+          LLEVIX_TEST_DIR: ${{ env.SALIDA }}/pruebas
+        run: ./tests/qemu-boot-test.sh "$SALIDA/llevix-${{ matrix.variante }}.img"
+
+      - name: Probar primer arranque (usuario, datos, persistencia, errores)
+        if: ${{ !cancelled() && steps.construir.outcome == 'success' }}
+        env:
+          LLEVIX_TEST_DIR: ${{ env.SALIDA }}/pruebas
+        run: ./tests/firstboot-test.sh "$SALIDA/llevix-${{ matrix.variante }}.img"
+
+      - name: Probar resistencia (ajustes del disco, estados, apagado brusco)
+        if: ${{ !cancelled() && steps.construir.outcome == 'success' }}
+        env:
+          LLEVIX_TEST_DIR: ${{ env.SALIDA }}/pruebas
+        run: ./tests/resistencia-test.sh "$SALIDA/llevix-${{ matrix.variante }}.img"
+
+      - name: Mapa de bloques, tamaño y compresión
+        run: |
+          cd "$SALIDA"
+          img="llevix-${{ matrix.variante }}.img"
+          bmaptool create -o "$img.bmap" "$img"
+          stat -c %s "$img" > "$img.tamano"
+          zstd -T0 -9 --rm "$img"
+          sha256sum "$img.zst" > "$img.zst.sha256"
           ls -lh
 
       - name: Guardar imagen

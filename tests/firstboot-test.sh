@@ -94,7 +94,8 @@ if qemu_esperar_informe "$TIMEOUT" && qga_esperar 120; then
     # Lo que el usuario necesita apenas entra: red, sonido, navegador y actualizaciones.
     comprobar "la red conecta (NetworkManager)"         "for i in \$(seq 30); do nmcli -t -f STATE general | grep -q '^connected' && exit 0; sleep 2; done; nmcli general; exit 1"
     comprobar "hay tarjeta de sonido y servidor de sonido para la sesión"         "grep -q '\[' /proc/asound/cards && { systemctl --global is-enabled -q pipewire.socket || systemctl --global is-enabled -q pulseaudio.socket; }"
-    comprobar "Firefox funciona" "/usr/lib/firefox/firefox --version"
+    comprobar "el navegador funciona" \
+        "for b in /usr/lib/firefox/firefox /usr/lib/firefox-esr/firefox-esr /usr/bin/chromium /usr/bin/brave-browser /usr/bin/firefox; do [ -x \"\$b\" ] && { echo \"\$b\"; \"\$b\" --version; exit \$?; }; done; echo 'no se encontró navegador'; exit 1"
     comprobar "las actualizaciones (apt) funcionan sin errores"         "apt-get update > /tmp/apt.log 2>&1; r=\$?; cat /tmp/apt.log | tail -5; test \$r -eq 0 && ! grep -Eq '^(E|W):' /tmp/apt.log" 300
     comprobar "en Mint, los repositorios tienen el formato de Mint"         "! grep -qi mint /etc/os-release /etc/lsb-release 2>/dev/null || { test -f /etc/apt/sources.list.d/official-package-repositories.list && ! test -e /etc/apt/sources.list.d/ubuntu.sources; }"
     comprobar "se crean archivos para la prueba de persistencia" \

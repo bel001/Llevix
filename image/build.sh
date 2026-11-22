@@ -23,6 +23,7 @@ SYS_SIZE="${LLEVIX_SYS_SIZE:-24G}"
 MIRROR="${LLEVIX_MIRROR:-http://archive.ubuntu.com/ubuntu}"
 MIRROR_PUBLICO="http://archive.ubuntu.com/ubuntu"
 MIRROR_SEGURIDAD="http://security.ubuntu.com/ubuntu"
+COMPONENTES="main,restricted,universe,multiverse"
 # Repositorio de Linux Mint y su llave (verificada por SHA256: el servidor no tiene HTTPS).
 MINT_REPO="http://packages.linuxmint.com"
 MINT_LLAVE_URL="$MINT_REPO/pool/main/l/linuxmint-keyring/linuxmint-keyring_2022.06.21_all.deb"
@@ -90,6 +91,7 @@ source "$CONF"
 : "${NOMBRE_VISIBLE:?falta en $CONF}" "${BASE:?}" "${SUITE:?}" "${PAQUETES_ESCRITORIO:?}" "${GESTOR_SESION:?}"
 # TIPO: "escritorio" (lo normal) o "instalador" (fase 8: instala una ISO del usuario).
 TIPO="${TIPO:-escritorio}"
+[[ "$TIPO" != "desde-iso" ]] || error "$VARIANTE se construye desde su ISO: usa image/desde-iso.sh"
 [[ "$TIPO" == "escritorio" || "$TIPO" == "instalador" ]] || error "TIPO no válido en $CONF: $TIPO"
 # btrfs del instalador: 16 GiB; los 8 GiB finales de la partición guardan la ISO.
 FS_INSTALADOR="16G"
@@ -100,6 +102,18 @@ JQ_SHA256="5942c9b0934e510ee61eb3e30273f1b3fe2590df93933a93d7c58b81d19c8ff5"
 for herramienta in debootstrap sgdisk mkfs.vfat mkfs.exfat mkfs.btrfs losetup btrfs fstrim udevadm; do
     command -v "$herramienta" >/dev/null || error "falta $herramienta (ejecuta ./tools/check-env.sh)"
 done
+
+if [[ "$BASE" == "debian" ]]; then
+    # Debian: sus espejos y sus componentes (con el firmware no libre, como su instalador).
+    MIRROR="${LLEVIX_MIRROR_DEBIAN:-http://deb.debian.org/debian}"
+    MIRROR_PUBLICO="http://deb.debian.org/debian"
+    MIRROR_SEGURIDAD="http://security.debian.org/debian-security"
+    COMPONENTES="main,contrib,non-free,non-free-firmware"
+    [[ -f /usr/share/keyrings/debian-archive-keyring.gpg ]] || error "falta debian-archive-keyring"
+    KERNEL="linux-image-amd64 firmware-linux firmware-sof-signed firmware-iwlwifi firmware-realtek firmware-atheros firmware-brcm80211 firmware-misc-nonfree"
+else
+    KERNEL="linux-generic linux-firmware"
+fi
 
 mkdir -p "$OUT_DIR"
 IMG="$OUT_DIR/llevix-$VARIANTE.img"
@@ -165,7 +179,9 @@ mount "$P_ESP" "$ROOT/boot/efi"
 # ---------- 3. Sistema base ----------
 
 paso "debootstrap $SUITE (esto tarda unos minutos)"
-debootstrap --arch=amd64 --components=main,restricted,universe,multiverse \
+LLAVERO=()
+[[ "$BASE" == "debian" ]] && LLAVERO=(--keyring=/usr/share/keyrings/debian-archive-keyring.gpg)
+debootstrap --arch=amd64 --components="$COMPONENTES" "${LLAVERO[@]}" \
     "$SUITE" "$ROOT" "$MIRROR"
 
 mkdir -p "$ROOT/.snapshots"
@@ -202,6 +218,22 @@ deb $1 $SUITE-updates main restricted universe multiverse
 deb $1 $SUITE-backports main restricted universe multiverse
 
 deb $2 $SUITE-security main restricted universe multiverse
+EOF
+        return 0
+    fi
+    if [[ "$BASE" == "debian" ]]; then
+        cat > "$ROOT/etc/apt/sources.list.d/debian.sources" <<EOF
+Types: deb
+URIs: $1
+Suites: $SUITE $SUITE-updates
+Components: main contrib non-free non-free-firmware
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+Types: deb
+URIs: $2
+Suites: $SUITE-security
+Components: main contrib non-free non-free-firmware
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
 EOF
         return 0
     fi
@@ -308,7 +340,12 @@ EOF
 
 paso "Instalando kernel, firmware y cargadores de arranque"
 en_chroot "apt-get update && apt-get -y full-upgrade"
-en_chroot "apt-get -y install linux-generic linux-firmware \
+if [[ "$BASE" == "debian" ]]; then
+    # Como en Ubuntu: enlaces /boot/vmlinuz e /boot/initrd.img al kernel actual (los usan
+    # el modo gráficos seguros y los estados guardados).
+    printf 'do_symlinks = yes\nlink_in_boot = yes\n' > "$ROOT/etc/kernel-img.conf"
+fi
+en_chroot "apt-get -y install $KERNEL \
     btrfs-progs exfatprogs dosfstools \
     shim-signed grub-efi-amd64-signed grub-efi-amd64-bin grub-pc-bin grub2-common \
     sudo locales tzdata jq gdisk qemu-guest-agent sg3-utils hdparm"
@@ -338,27 +375,13 @@ fi
 if [[ "$TIPO" == "escritorio" ]]; then
 NAVEGADOR=""
 [[ "$BASE" == "ubuntu" ]] && NAVEGADOR="firefox firefox-l10n-es-es firefox-l10n-es-mx firefox-l10n-es-ar"
+[[ "$BASE" == "debian" ]] && NAVEGADOR="firefox-esr firefox-esr-l10n-es-es firefox-esr-l10n-es-mx firefox-esr-l10n-es-ar"
 en_chroot "apt-get -y install ${PAQUETES_IDIOMA:-} $NAVEGADOR"
 
 # Lo que cualquier usuario necesita desde el primer minuto. Si falta algo, la
 # construcción falla (así no se publica una imagen sin red, sonido o navegador).
 paso "Comprobando que el escritorio está completo"
-# shellcheck disable=SC2016  # las variables se expanden dentro del chroot
-en_chroot '
-falta=""
-instalado() { dpkg-query -W -f="\${Status}" "$1" 2>/dev/null | grep -q "install ok installed"; }
-alguno() { for p in "$@"; do instalado "$p" && return 0; done; return 1; }
-alguno network-manager            || falta="$falta red(network-manager)"
-alguno wpasupplicant              || falta="$falta wifi(wpasupplicant)"
-alguno network-manager-gnome plasma-nm nm-tray gnome-shell || falta="$falta icono-de-red"
-alguno pipewire-pulse pulseaudio  || falta="$falta sonido"
-alguno wireplumber pulseaudio     || falta="$falta sonido(sesion)"
-test -x /usr/lib/firefox/firefox  || falta="$falta navegador(firefox)"
-test -e /etc/alternatives/x-terminal-emulator || falta="$falta terminal"
-alguno nautilus dolphin thunar pcmanfm-qt nemo caja || falta="$falta archivos"
-if [ -n "$falta" ]; then echo "Faltan componentes básicos:$falta" >&2; exit 1; fi
-echo "Escritorio completo: red, wifi, sonido, navegador, terminal y archivos."
-'
+en_chroot "$(cat "$DIR_IMAGE/lib/verificar-escritorio.sh")"
 
 if [[ "$BASE" == "ubuntu" && "$GESTOR_SESION" == "gdm3" ]]; then
     # El panel de Ubuntu apunta al Firefox snap (firefox_firefox.desktop): se apunta al de Mozilla.
@@ -392,17 +415,25 @@ ff02::2     ip6-allrouters
 EOF
 
 # Red: NetworkManager maneja todas las interfaces.
-mkdir -p "$ROOT/etc/netplan"
-cat > "$ROOT/etc/netplan/01-network-manager-all.yaml" <<'EOF'
+if [[ "$BASE" != "debian" ]]; then
+    mkdir -p "$ROOT/etc/netplan"
+    cat > "$ROOT/etc/netplan/01-network-manager-all.yaml" <<'EOF'
 network:
   version: 2
   renderer: NetworkManager
 EOF
-chmod 600 "$ROOT/etc/netplan/01-network-manager-all.yaml"
+    chmod 600 "$ROOT/etc/netplan/01-network-manager-all.yaml"
+fi
 # Ninguna conexión guardada atada a una tarjeta de red concreta.
 rm -f "$ROOT"/etc/NetworkManager/system-connections/*
 
-en_chroot "locale-gen C.UTF-8 en_US.UTF-8 es_ES.UTF-8 >/dev/null && update-locale LANG=C.UTF-8"
+if [[ "$BASE" == "debian" ]]; then
+    # En Debian, locale-gen genera lo que está activo en /etc/locale.gen.
+    printf '%s\n' "en_US.UTF-8 UTF-8" "es_ES.UTF-8 UTF-8" >> "$ROOT/etc/locale.gen"
+    en_chroot "locale-gen >/dev/null && update-locale LANG=C.UTF-8"
+else
+    en_chroot "locale-gen C.UTF-8 en_US.UTF-8 es_ES.UTF-8 >/dev/null && update-locale LANG=C.UTF-8"
+fi
 
 # Archivos propios de Llevix (servicios, scripts).
 paso "Copiando la capa de Llevix (image/overlay)"
@@ -485,7 +516,7 @@ en_chroot "grub-install --target=x86_64-efi --efi-directory=/boot/efi \
 # (EFI/ubuntu, junto a sí mismo o /boot/grub de la partición EFI). Se deja el mismo
 # archivo puente en los tres: busca la partición del sistema por UUID y carga el
 # grub.cfg real que está en el subvolumen @.
-for d in EFI/BOOT EFI/ubuntu boot/grub; do
+for d in EFI/BOOT EFI/ubuntu EFI/debian boot/grub; do
     mkdir -p "$ROOT/boot/efi/$d"
     cat > "$ROOT/boot/efi/$d/grub.cfg" <<EOF
 echo "Llevix: buscando el sistema..."
@@ -526,7 +557,13 @@ rm -rf "$ROOT"/var/lib/apt/lists/* "$ROOT"/tmp/* "$ROOT"/var/tmp/*
 : > "$ROOT/etc/machine-id"
 rm -f "$ROOT/var/lib/dbus/machine-id"
 ln -sf /etc/machine-id "$ROOT/var/lib/dbus/machine-id"
-ln -sf ../run/systemd/resolve/stub-resolv.conf "$ROOT/etc/resolv.conf"
+if [[ -e "$ROOT/usr/lib/systemd/systemd-resolved" || -e "$ROOT/lib/systemd/systemd-resolved" ]]; then
+    ln -sf ../run/systemd/resolve/stub-resolv.conf "$ROOT/etc/resolv.conf"
+else
+    # Sin systemd-resolved (Debian): NetworkManager escribe /etc/resolv.conf directamente.
+    rm -f "$ROOT/etc/resolv.conf"
+    : > "$ROOT/etc/resolv.conf"
+fi
 
 df -h "$ROOT" "$ROOT/boot/efi"
 # fstrim libera en el archivo los bloques vacíos: la imagen ocupa solo lo que usa.
