@@ -133,11 +133,16 @@ bajar() {  # bajar <url> <carpeta>: guarda con el nombre del archivo (sin %2B, %
 }
 
 # Respaldo 1 (Ubuntu, Mint y Zorin): Launchpad guarda para siempre el código de cada
-# versión publicada en Ubuntu, aunque ya haya una más nueva en los repositorios.
+# versión publicada en Ubuntu, aunque ya haya una más nueva en los repositorios. También
+# se busca en los PPA que usan algunas distros (LibreOffice nuevo en Zorin, "~lo").
+PPAS="ubuntu/+archive/primary ~libreoffice/+archive/ubuntu/ppa ~libreoffice/+archive/ubuntu/libreoffice-still"
 respaldo_launchpad() {  # <paquete> <versión> <carpeta>
-    local enlace u
-    enlace="$(curl -fsS --retry 3 "https://api.launchpad.net/1.0/ubuntu/+archive/primary?ws.op=getPublishedSources&exact_match=true&source_name=$(uri "$1")&version=$(uri "$2")" \
-        | jq -r '.entries[0].self_link // empty')" || return 1
+    local enlace="" u archivo
+    for archivo in $PPAS; do
+        enlace="$(curl -fsS --retry 3 "https://api.launchpad.net/1.0/$archivo?ws.op=getPublishedSources&exact_match=true&source_name=$(uri "$1")&version=$(uri "$2")" \
+            | jq -r '.entries[0].self_link // empty')" || enlace=""
+        [[ -n "$enlace" ]] && break
+    done
     [[ -n "$enlace" ]] || return 1
     for u in $(curl -fsS --retry 3 "$enlace?ws.op=sourceFileUrls" | jq -r '.[]'); do
         bajar "$u" "$3" || return 1
@@ -191,11 +196,15 @@ descargar() {  # descargar <paquete> <versión>
     fi
     rm -rf "$d"
     local motivo="no está en los repositorios de código fuente"
-    [[ "$BASE" == zorin && "$v" != *ubuntu* ]] && motivo="código de Zorin OS: https://github.com/ZorinOS"
+    if [[ "$v" == *zorin* || ( "$BASE" == zorin && "$v" != *ubuntu* ) ]]; then
+        motivo="paquete propio de Zorin OS (no publica su código en el repositorio): https://github.com/ZorinOS"
+    elif [[ "$v" == *~lo* ]]; then
+        motivo="LibreOffice del PPA de The Document Foundation (versión ya retirada); código en https://download.documentfoundation.org/libreoffice/old/"
+    fi
     printf '%s\t%s\t%s\n' "$p" "$v" "$motivo" >> "$SALIDA/faltantes.txt"
 }
 export -f uri bajar respaldo_launchpad respaldo_mint respaldo_debian descargar
-export SALIDA BASE MINT_REPO
+export SALIDA BASE MINT_REPO PPAS
 
 # Varias descargas a la vez; cada línea se escribe completa (son líneas cortas).
 # shellcheck disable=SC2016  # $0 y $1 los expande el bash hijo, no este
