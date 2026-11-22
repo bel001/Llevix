@@ -108,7 +108,8 @@ if [[ ! -f "$CONFIG" ]]; then
     # GNOME (gdm3) ofrece crear la cuenta en su bienvenida. Los demás escritorios
     # (KDE, Xfce, LXQt, Cinnamon, MATE) no: se crea una cuenta "llevix" con contraseña
     # "llevix" que hay que cambiar en el primer inicio de sesión.
-    if grep -q gdm3 /etc/X11/default-display-manager 2>/dev/null; then
+    if grep -q gdm3 /etc/X11/default-display-manager 2>/dev/null \
+        && [[ -x /usr/libexec/gnome-initial-setup ]]; then
         log "no hay $CONFIG; se usará la bienvenida de la distribución para crear la cuenta"
     elif ! getent passwd llevix >/dev/null; then
         log "no hay $CONFIG; se crea la cuenta 'llevix' (contraseña 'llevix', hay que cambiarla)"
@@ -259,7 +260,13 @@ ln -sf "/usr/share/zoneinfo/$zona" /etc/localtime
 echo "$zona" > /etc/timezone
 
 log "idioma: $idioma"
-locale-gen "$idioma" >/dev/null
+if [[ -d /var/lib/locales/supported.d ]]; then
+    locale-gen "$idioma" >/dev/null
+else
+    # Debian: locale-gen genera lo que está activo en /etc/locale.gen.
+    grep -q "^$idioma UTF-8" /etc/locale.gen || echo "$idioma UTF-8" >> /etc/locale.gen
+    locale-gen >/dev/null
+fi
 idioma_corto="${idioma%%.*}"
 update-locale LANG="$idioma" LANGUAGE="$idioma_corto:${idioma_corto%%_*}"
 

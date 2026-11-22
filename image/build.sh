@@ -23,6 +23,7 @@ SYS_SIZE="${LLEVIX_SYS_SIZE:-24G}"
 MIRROR="${LLEVIX_MIRROR:-http://archive.ubuntu.com/ubuntu}"
 MIRROR_PUBLICO="http://archive.ubuntu.com/ubuntu"
 MIRROR_SEGURIDAD="http://security.ubuntu.com/ubuntu"
+COMPONENTES="main,restricted,universe,multiverse"
 # Repositorio de Linux Mint y su llave (verificada por SHA256: el servidor no tiene HTTPS).
 MINT_REPO="http://packages.linuxmint.com"
 MINT_LLAVE_URL="$MINT_REPO/pool/main/l/linuxmint-keyring/linuxmint-keyring_2022.06.21_all.deb"
@@ -102,6 +103,18 @@ for herramienta in debootstrap sgdisk mkfs.vfat mkfs.exfat mkfs.btrfs losetup bt
     command -v "$herramienta" >/dev/null || error "falta $herramienta (ejecuta ./tools/check-env.sh)"
 done
 
+if [[ "$BASE" == "debian" ]]; then
+    # Debian: sus espejos y sus componentes (con el firmware no libre, como su instalador).
+    MIRROR="${LLEVIX_MIRROR_DEBIAN:-http://deb.debian.org/debian}"
+    MIRROR_PUBLICO="http://deb.debian.org/debian"
+    MIRROR_SEGURIDAD="http://security.debian.org/debian-security"
+    COMPONENTES="main,contrib,non-free,non-free-firmware"
+    [[ -f /usr/share/keyrings/debian-archive-keyring.gpg ]] || error "falta debian-archive-keyring"
+    KERNEL="linux-image-amd64 firmware-linux firmware-sof-signed firmware-iwlwifi firmware-realtek firmware-atheros firmware-brcm80211 firmware-misc-nonfree"
+else
+    KERNEL="linux-generic linux-firmware"
+fi
+
 mkdir -p "$OUT_DIR"
 IMG="$OUT_DIR/llevix-$VARIANTE.img"
 
@@ -166,7 +179,9 @@ mount "$P_ESP" "$ROOT/boot/efi"
 # ---------- 3. Sistema base ----------
 
 paso "debootstrap $SUITE (esto tarda unos minutos)"
-debootstrap --arch=amd64 --components=main,restricted,universe,multiverse \
+LLAVERO=()
+[[ "$BASE" == "debian" ]] && LLAVERO=(--keyring=/usr/share/keyrings/debian-archive-keyring.gpg)
+debootstrap --arch=amd64 --components="$COMPONENTES" "${LLAVERO[@]}" \
     "$SUITE" "$ROOT" "$MIRROR"
 
 mkdir -p "$ROOT/.snapshots"
@@ -203,6 +218,22 @@ deb $1 $SUITE-updates main restricted universe multiverse
 deb $1 $SUITE-backports main restricted universe multiverse
 
 deb $2 $SUITE-security main restricted universe multiverse
+EOF
+        return 0
+    fi
+    if [[ "$BASE" == "debian" ]]; then
+        cat > "$ROOT/etc/apt/sources.list.d/debian.sources" <<EOF
+Types: deb
+URIs: $1
+Suites: $SUITE $SUITE-updates
+Components: main contrib non-free non-free-firmware
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+Types: deb
+URIs: $2
+Suites: $SUITE-security
+Components: main contrib non-free non-free-firmware
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
 EOF
         return 0
     fi
@@ -309,7 +340,7 @@ EOF
 
 paso "Instalando kernel, firmware y cargadores de arranque"
 en_chroot "apt-get update && apt-get -y full-upgrade"
-en_chroot "apt-get -y install linux-generic linux-firmware \
+en_chroot "apt-get -y install $KERNEL \
     btrfs-progs exfatprogs dosfstools \
     shim-signed grub-efi-amd64-signed grub-efi-amd64-bin grub-pc-bin grub2-common \
     sudo locales tzdata jq gdisk qemu-guest-agent sg3-utils hdparm"
@@ -339,6 +370,7 @@ fi
 if [[ "$TIPO" == "escritorio" ]]; then
 NAVEGADOR=""
 [[ "$BASE" == "ubuntu" ]] && NAVEGADOR="firefox firefox-l10n-es-es firefox-l10n-es-mx firefox-l10n-es-ar"
+[[ "$BASE" == "debian" ]] && NAVEGADOR="firefox-esr firefox-esr-l10n-es-es firefox-esr-l10n-es-mx firefox-esr-l10n-es-ar"
 en_chroot "apt-get -y install ${PAQUETES_IDIOMA:-} $NAVEGADOR"
 
 # Lo que cualquier usuario necesita desde el primer minuto. Si falta algo, la
@@ -378,17 +410,25 @@ ff02::2     ip6-allrouters
 EOF
 
 # Red: NetworkManager maneja todas las interfaces.
-mkdir -p "$ROOT/etc/netplan"
-cat > "$ROOT/etc/netplan/01-network-manager-all.yaml" <<'EOF'
+if [[ "$BASE" != "debian" ]]; then
+    mkdir -p "$ROOT/etc/netplan"
+    cat > "$ROOT/etc/netplan/01-network-manager-all.yaml" <<'EOF'
 network:
   version: 2
   renderer: NetworkManager
 EOF
-chmod 600 "$ROOT/etc/netplan/01-network-manager-all.yaml"
+    chmod 600 "$ROOT/etc/netplan/01-network-manager-all.yaml"
+fi
 # Ninguna conexión guardada atada a una tarjeta de red concreta.
 rm -f "$ROOT"/etc/NetworkManager/system-connections/*
 
-en_chroot "locale-gen C.UTF-8 en_US.UTF-8 es_ES.UTF-8 >/dev/null && update-locale LANG=C.UTF-8"
+if [[ "$BASE" == "debian" ]]; then
+    # En Debian, locale-gen genera lo que está activo en /etc/locale.gen.
+    printf '%s\n' "en_US.UTF-8 UTF-8" "es_ES.UTF-8 UTF-8" >> "$ROOT/etc/locale.gen"
+    en_chroot "locale-gen >/dev/null && update-locale LANG=C.UTF-8"
+else
+    en_chroot "locale-gen C.UTF-8 en_US.UTF-8 es_ES.UTF-8 >/dev/null && update-locale LANG=C.UTF-8"
+fi
 
 # Archivos propios de Llevix (servicios, scripts).
 paso "Copiando la capa de Llevix (image/overlay)"
@@ -471,7 +511,7 @@ en_chroot "grub-install --target=x86_64-efi --efi-directory=/boot/efi \
 # (EFI/ubuntu, junto a sí mismo o /boot/grub de la partición EFI). Se deja el mismo
 # archivo puente en los tres: busca la partición del sistema por UUID y carga el
 # grub.cfg real que está en el subvolumen @.
-for d in EFI/BOOT EFI/ubuntu boot/grub; do
+for d in EFI/BOOT EFI/ubuntu EFI/debian boot/grub; do
     mkdir -p "$ROOT/boot/efi/$d"
     cat > "$ROOT/boot/efi/$d/grub.cfg" <<EOF
 echo "Llevix: buscando el sistema..."
