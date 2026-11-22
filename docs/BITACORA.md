@@ -297,3 +297,7 @@ navegador y "la configuración de APT está corrupta".
   código de todos los paquetes (Ubuntu, Mint, Debian, Zorin), con respaldo en Launchpad,
   el pool de Mint y snapshot.debian.org. Oferta escrita por 3 años en
   `docs/CODIGO-FUENTE.md` y en cada imagen (`/usr/share/doc/llevix/CODIGO-FUENTE.txt`).
+- **Caché de descargas (beta, en vivo):** con v0.0.7-test salió «una parte de la descarga
+  está dañada». Quedaba en la caché una parte de v0.0.6 con el mismo nombre y tamaño; el
+  creador la daba por descargada y fallaba la suma. Ahora el nombre de cada parte lleva el
+  comienzo de su SHA256 y se borran las descargas de otras versiones.

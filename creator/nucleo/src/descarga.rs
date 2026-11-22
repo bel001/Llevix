@@ -30,10 +30,32 @@ pub fn sha256_hex(datos: &[u8]) -> String {
 }
 
 /// Rutas de las partes de una variante dentro de la carpeta de caché.
+///
+/// El nombre lleva el comienzo de la SHA256 de cada parte: así una parte descargada para
+/// OTRA versión (mismo nombre de variante, mismo tamaño, otro contenido) nunca se toma
+/// por una descarga ya terminada de la versión nueva.
 pub fn rutas_partes(cache: &Path, id: &str, partes: &[Parte]) -> Vec<PathBuf> {
-    (0..partes.len())
-        .map(|i| cache.join(format!("llevix-{id}.img.zst.parte{:03}", i + 1)))
+    partes
+        .iter()
+        .enumerate()
+        .map(|(i, p)| {
+            let huella: String = p.sha256.to_ascii_lowercase().chars().take(16).collect();
+            cache.join(format!("llevix-{id}-{huella}.parte{:03}", i + 1))
+        })
         .collect()
+}
+
+/// Borra de la caché las descargas que no sean las de `conservar` (versiones anteriores
+/// u otras variantes): cada imagen ocupa varios GB. Solo toca archivos `llevix-*`.
+fn limpiar_cache(cache: &Path, conservar: &[PathBuf]) {
+    let Ok(entradas) = fs::read_dir(cache) else { return };
+    for e in entradas.flatten() {
+        let ruta = e.path();
+        let es_nuestro = e.file_name().to_string_lossy().starts_with("llevix-");
+        if es_nuestro && ruta.is_file() && !conservar.contains(&ruta) {
+            let _ = fs::remove_file(&ruta);
+        }
+    }
 }
 
 fn sha256_archivo(ruta: &Path, cancelar: &AtomicBool, avance: &mut dyn FnMut(u64)) -> Resultado<String> {
@@ -153,6 +175,7 @@ pub fn descargar_imagen(
 ) -> Resultado<Vec<PathBuf>> {
     fs::create_dir_all(cache)?;
     let rutas = rutas_partes(cache, id, partes);
+    limpiar_cache(cache, &rutas);
     let total: u64 = partes.iter().map(|p| p.tamano).sum();
     let cliente = cliente()?;
 
@@ -306,6 +329,31 @@ mod pruebas {
         let mut unido = Vec::new();
         abrir_imagen(&rutas).unwrap().read_to_end(&mut unido).unwrap();
         assert_eq!(unido, [a, b].concat());
+    }
+
+    /// Lo que pasó en la beta: quedaba en la caché una parte de la versión anterior, del
+    /// mismo tamaño, y el creador la daba por descargada y luego fallaba la suma.
+    #[test]
+    fn no_reutiliza_partes_de_otra_version() {
+        let nueva = vec![7u8; 4096];
+        let (base, registro) = servidor(vec![("a", nueva.clone())], 0);
+        let partes = vec![Parte { url: format!("{base}/a"), tamano: 4096, sha256: sha(&nueva) }];
+        let cache = tempfile::tempdir().unwrap();
+        // Restos: una parte "vieja" del mismo tamaño con el nombre que usaba v0.0.7 y otra
+        // con el nombre nuevo pero de otra versión. Y un archivo ajeno que no se toca.
+        let vieja_v07 = cache.path().join("llevix-x.img.zst.parte001");
+        let vieja_otra = cache.path().join("llevix-x-0123456789abcdef.parte001");
+        let ajeno = cache.path().join("notas.txt");
+        fs::write(&vieja_v07, vec![1u8; 4096]).unwrap();
+        fs::write(&vieja_otra, vec![2u8; 4096]).unwrap();
+        fs::write(&ajeno, b"hola").unwrap();
+
+        let rutas = descargar_imagen(cache.path(), "x", &partes, &sha(&nueva), &AtomicBool::new(false), &mut |_| {})
+            .unwrap();
+        assert_eq!(fs::read(&rutas[0]).unwrap(), nueva);
+        assert!(registro.lock().unwrap().iter().any(|l| l == "/a desde 0"), "no descargó la parte nueva");
+        assert!(!vieja_v07.exists() && !vieja_otra.exists(), "quedaron restos de otra versión");
+        assert!(ajeno.exists(), "borró un archivo que no era del creador");
     }
 
     #[test]
