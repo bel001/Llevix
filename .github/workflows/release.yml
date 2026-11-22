@@ -88,6 +88,11 @@ jobs:
             echo "Cada imagen tiene su archivo \`.sha256\`. Si la imagen está dividida en partes"
             echo "(\`.001\`, \`.002\`…), únelas en orden antes de comprobar la suma."
             echo
+            echo "- Windows (cmd): \`copy /b archivo.img.zst.001 + archivo.img.zst.002 archivo.img.zst\`"
+            echo "- Linux/macOS: \`cat archivo.img.zst.0* > archivo.img.zst\`"
+            echo
+            echo "Luego descomprime con 7-Zip o \`zstd -d\`. El creador de Llevix hace todo esto solo."
+            echo
             echo "## Código fuente y licencias"
             echo
             echo "Llevix está hecho de software libre. Cada imagen incluye paquetes de Ubuntu"

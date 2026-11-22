@@ -2,6 +2,28 @@
 
 Lo más reciente arriba. Cada fase anota qué se hizo, qué se decidió y qué quedó pendiente.
 
+## Fase 4 — Publicación automática (2026-11-21)
+
+**Qué se hizo**
+- `build.yml` se puede reutilizar (`workflow_call`) y ahora deja por variante: imagen
+  comprimida, `.sha256`, `.bmap` (`bmaptool create`), tamaño y lista de paquetes.
+- `tools/manifest.sh` genera `manifest.json` (formato 1) a partir de esos archivos y de
+  `image/distros/*.conf`.
+- `release.yml`: con una etiqueta `v*` construye y prueba las 7 variantes, divide los
+  archivos de 2 GiB o más en partes de 1900 MiB, genera manifest y notas en español
+  (variantes, cambios, cómo verificar y unir partes, código fuente y licencias) y crea
+  el Release (pre-release si la etiqueta tiene guion).
+- Prueba: `v0.0.1-test` publicó 38 archivos (7 variantes en 2 o 3 partes cada una).
+  El núcleo del creador validó el `manifest.json` y un `.bmap` reales (4.824 rangos,
+  4,37 GB con datos de 30 GB, suma interna correcta).
+
+**Decisiones**
+- Dividir en partes en lugar de otro alojamiento: GitHub Releases no tiene límite de
+  tamaño total, solo 2 GiB por archivo; el creador lee las partes en cadena.
+- Lista de paquetes con paquete fuente y versión fuente para cumplir con la GPL.
+
+**Pendiente**
+- El instalador del creador se agrega al Release en la fase 5.
 ## Fase 3 — Portabilidad, resistencia y variantes (2026-11-21)
 
 **Qué se hizo**
