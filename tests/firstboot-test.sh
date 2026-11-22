@@ -98,6 +98,8 @@ if qemu_esperar_informe "$TIMEOUT" && qga_esperar 120; then
         "for b in /usr/lib/firefox/firefox /usr/lib/firefox-esr/firefox-esr /usr/bin/chromium /usr/bin/brave-browser /usr/bin/firefox; do [ -x \"\$b\" ] && { echo \"\$b\"; \"\$b\" --version; exit \$?; }; done; echo 'no se encontró navegador'; exit 1"
     comprobar "las actualizaciones (apt) funcionan sin errores"         "apt-get update > /tmp/apt.log 2>&1; r=\$?; cat /tmp/apt.log | tail -5; test \$r -eq 0 && ! grep -Eq '^(E|W):' /tmp/apt.log" 300
     comprobar "en Mint, los repositorios tienen el formato de Mint"         "! grep -qi mint /etc/os-release /etc/lsb-release 2>/dev/null || { test -f /etc/apt/sources.list.d/official-package-repositories.list && ! test -e /etc/apt/sources.list.d/ubuntu.sources; }"
+    comprobar "la oferta de código fuente (GPL) está en el sistema" \
+        "grep -q 'Oferta escrita' /usr/share/doc/llevix/CODIGO-FUENTE.txt"
     comprobar "se crean archivos para la prueba de persistencia" \
         "echo persistente > /home/$USUARIO/Datos/persistencia.txt && echo persistente > /home/$USUARIO/persistencia.txt && sync"
 else

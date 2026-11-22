@@ -167,6 +167,8 @@ El código de Llevix (scripts, creador, pruebas y documentación) se publica baj
 **[licencia MIT](LICENSE)**: puedes usarlo, copiarlo, modificarlo y distribuirlo libremente,
 también con fines comerciales, siempre que conserves el aviso de copyright y la licencia.
 
-Las imágenes de Llevix incluyen software de Ubuntu, Linux Mint, Debian, Zorin OS y otras distribuciones, cada
-uno con su propia licencia (GPL y otras). Cada versión publica la lista exacta de paquetes
-(`llevix-<variante>.paquetes.txt`) y dónde obtener su código fuente.
+Las imágenes de Llevix incluyen software de Ubuntu, Linux Mint, Debian y Zorin OS, cada
+programa con su propia licencia (GPL y otras). Cada versión publica la lista exacta de
+paquetes (`llevix-<variante>.paquetes.txt`) y **el código fuente de todos ellos**
+(`llevix-fuentes-<base>.tar.*`), con una oferta escrita válida por tres años: ver
+[docs/CODIGO-FUENTE.md](docs/CODIGO-FUENTE.md).
