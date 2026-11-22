@@ -2,6 +2,41 @@
 
 Lo más reciente arriba. Cada fase anota qué se hizo, qué se decidió y qué quedó pendiente.
 
+## Fase 8 — "Trae tu ISO" (2026-11-22)
+
+**Qué se hizo**
+- Imagen nueva `instalador` (Ubuntu 24.04 mínimo, `TIPO=instalador`): btrfs de 16 GiB en la
+  partición del sistema; los 8 GiB finales guardan un encabezado (`LLEVIX-ISO 1`) y la ISO.
+- `image/instalador/instalar-iso.sh` (primer arranque): verifica la ISO, detecta capas de
+  Ubuntu 24.04+ o `casper/filesystem.squashfs`, copia el sistema, quita lo del modo en
+  vivo, instala el kernel (desde los paquetes de la propia ISO si hace falta, sin internet),
+  agrega la capa de Llevix, cambia de subvolumen, amplía el espacio y reinicia. Si falla,
+  deshace y explica. Con Secure Boot exige kernel firmado por Canonical.
+- `firstboot.sh` funciona también en distros instaladas desde ISO (`jq` estático de respaldo,
+  no amplía dos veces los datos, borra el instalador viejo).
+- Informe de arranque con `LLEVIX-INFO` (sistema, usuarios, red, sonido, navegador, Datos).
+- Creador: lector ISO 9660 (Joliet / Rock Ridge), tarjeta "Usar mi propia ISO", escritura
+  de la ISO en la zona reservada con verificación SHA256; el encabezado se escribe al final.
+  `manifest.json` gana el campo `tipo` (el instalador no aparece en el catálogo).
+- Prueba `tests/iso-propia-test.sh` (workflow `iso-propia`): el núcleo del creador prepara el
+  disco con ISOs reales y QEMU instala y arranca. **Mint 22.3 Xfce, Kubuntu 24.04.5 y
+  Ubuntu 24.04.5 pasan** (Secure Boot, cuenta, red, sonido, navegador, Datos y BIOS).
+
+**Decisiones**
+- La ISO va en una zona reservada de la partición del sistema y no en LLEVIX-DATOS: así
+  entra en una memoria de 32 GB.
+- Solo familia Ubuntu (casper). Debian live y otras quedan para después (catálogo, fase 9).
+- El arranque usa el shim/GRUB firmados de Ubuntu que ya trae el disco.
+
+**Problemas encontrados**
+- Ubuntu 24.04 no trae el kernel dentro del sistema: se instala desde `pool/` de la ISO.
+- El informe de arranque terminaba sin escribir si Datos no estaba montado (`findmnt` + pipefail).
+- Un espejo de Ubuntu falló una descarga: apt ahora reintenta durante la construcción.
+
+**Pendiente**
+- Prueba humana: crear un USB con "Usar mi propia ISO" (PENDIENTES.md).
+- Probar más ISOs de la familia (Zorin, elementary, Pop!_OS — este último sin Secure Boot).
+
 ## Beta — Escritorio completo (2026-11-22)
 
 **Problema reportado por el dueño** (Mint, en otras PCs): sin WiFi, sin sonido, sin

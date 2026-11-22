@@ -20,6 +20,10 @@ SSD o NVMe en caja USB) en un Linux portátil y persistente que arranca en cualq
 2. Descarga **Llevix-Creador-…-setup.exe** (Windows 10 u 11).
 3. Instálalo, ábrelo y sigue los 3 pasos.
 
+¿Ya tienes una ISO? En el paso 1 elige **"Usar mi propia ISO"**: Llevix acepta ISOs de la
+familia Ubuntu (Ubuntu y sus sabores, Linux Mint, Zorin OS, elementary OS…) de hasta 8 GB y
+las instala en el disco la primera vez que arranca.
+
 ¿Sin Windows? Descarga la imagen `.img.zst` de tu variante (y sus partes `.001`, `.002`…
 si las tiene), únelas, descomprímelas y escríbelas con balenaEtcher o `dd`. Sin el creador
 no se configura la cuenta: en Ubuntu (GNOME) la bienvenida te pide crearla; en las demás variantes entras con `llevix` / `llevix` y te pide cambiarla.

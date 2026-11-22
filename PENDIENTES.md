@@ -50,6 +50,10 @@ El piloto automático se detuvo aquí: lo que sigue necesita personas y PCs real
       sonido ni navegador en Mint) y probar en las otras PCs: WiFi, sonido, Firefox y el
       Gestor de actualizaciones.
 
+- [ ] **Probar "Usar mi propia ISO"** con la versión v0.0.5-test: en el creador, paso 1,
+      "Usar mi propia ISO", elige una ISO de Ubuntu, Linux Mint, Zorin o elementary (máximo
+      8 GB). El primer arranque tarda 5 a 15 minutos instalando y se reinicia solo.
+
 ## Decisiones abiertas
 - [ ] Licencia: GPL-3.0 (recomendada) o MIT — decidir antes de la beta
 - [ ] Confirmar que "Llevix" está libre como marca, dominio y en redes

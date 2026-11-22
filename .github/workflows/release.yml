@@ -18,13 +18,17 @@ jobs:
   imagenes:
     uses: ./.github/workflows/build.yml
 
+  # Imagen "Llevix instalador" para "Trae tu ISO" (se prueba con ISOs reales).
+  instalador:
+    uses: ./.github/workflows/iso-propia.yml
+
   creador:
     uses: ./.github/workflows/creador.yml
     with:
       solo_instalador: true
 
   publicar:
-    needs: [imagenes, creador]
+    needs: [imagenes, instalador, creador]
     runs-on: ubuntu-24.04
     env:
       VERSION: ${{ github.ref_name }}

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permisos de la ventana principal: solo eventos y los comandos propios del creador.",
+  "description": "Permisos de la ventana principal: eventos, comandos propios y elegir un archivo ISO.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "dialog:allow-open"]
 }

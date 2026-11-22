@@ -88,6 +88,14 @@ CONF="$DIR_IMAGE/distros/$VARIANTE.conf"
 # shellcheck source=/dev/null
 source "$CONF"
 : "${NOMBRE_VISIBLE:?falta en $CONF}" "${BASE:?}" "${SUITE:?}" "${PAQUETES_ESCRITORIO:?}" "${GESTOR_SESION:?}"
+# TIPO: "escritorio" (lo normal) o "instalador" (fase 8: instala una ISO del usuario).
+TIPO="${TIPO:-escritorio}"
+[[ "$TIPO" == "escritorio" || "$TIPO" == "instalador" ]] || error "TIPO no válido en $CONF: $TIPO"
+# btrfs del instalador: 16 GiB; los 8 GiB finales de la partición guardan la ISO.
+FS_INSTALADOR="16G"
+# jq oficial (MIT, binario estático): las distros instaladas desde una ISO a veces no lo traen.
+JQ_URL="https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64"
+JQ_SHA256="5942c9b0934e510ee61eb3e30273f1b3fe2590df93933a93d7c58b81d19c8ff5"
 
 for herramienta in debootstrap sgdisk mkfs.vfat mkfs.exfat mkfs.btrfs losetup btrfs fstrim udevadm; do
     command -v "$herramienta" >/dev/null || error "falta $herramienta (ejecuta ./tools/check-env.sh)"
@@ -127,7 +135,11 @@ P_DATOS="${LOOP}p1"; P_ESP="${LOOP}p3"; P_SIS="${LOOP}p4"
 paso "Formateando"
 mkfs.exfat -L LLEVIX "$P_DATOS" >/dev/null
 mkfs.vfat -F 32 -n LLEVIX-EFI "$P_ESP" >/dev/null
-mkfs.btrfs -f -q -L LLEVIX-SISTEMA "$P_SIS"
+if [[ "$TIPO" == "instalador" ]]; then
+    mkfs.btrfs -f -q -L LLEVIX-SISTEMA --byte-count "$FS_INSTALADOR" "$P_SIS"
+else
+    mkfs.btrfs -f -q -L LLEVIX-SISTEMA "$P_SIS"
+fi
 udevadm settle
 
 UUID_SIS="$(blkid -s UUID -o value "$P_SIS")"
@@ -234,7 +246,7 @@ Pin-Priority: 200
 EOF
 fi
 
-if [[ "$BASE" == "ubuntu" ]]; then
+if [[ "$BASE" == "ubuntu" && "$TIPO" == "escritorio" ]]; then
     paso "Agregando el repositorio oficial de Mozilla (Firefox)"
     mkdir -p "$ROOT/etc/apt/keyrings"
     curl -fsSL --retry 3 -o "$ROOT/etc/apt/keyrings/packages.mozilla.org.asc" "$MOZILLA_REPO/repo-signing-key.gpg"
@@ -255,6 +267,9 @@ Pin: origin packages.mozilla.org
 Pin-Priority: 1000
 EOF
 fi
+
+# Durante la construcción, apt reintenta las descargas (los espejos a veces fallan).
+echo 'Acquire::Retries "5";' > "$ROOT/etc/apt/apt.conf.d/80llevix-reintentos"
 
 # Durante la construcción no se arranca ningún servicio.
 printf '#!/bin/sh\nexit 101\n' > "$ROOT/usr/sbin/policy-rc.d"
@@ -320,6 +335,7 @@ else
     # shellcheck disable=SC2086  # la lista de paquetes se separa a propósito
     en_chroot "apt-get -y install $PAQUETES_ESCRITORIO"
 fi
+if [[ "$TIPO" == "escritorio" ]]; then
 NAVEGADOR=""
 [[ "$BASE" == "ubuntu" ]] && NAVEGADOR="firefox firefox-l10n-es-es firefox-l10n-es-mx firefox-l10n-es-ar"
 en_chroot "apt-get -y install ${PAQUETES_IDIOMA:-} $NAVEGADOR"
@@ -352,6 +368,7 @@ favorite-apps = ['firefox.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Tex
 EOF
     en_chroot "glib-compile-schemas /usr/share/glib-2.0/schemas"
 fi
+fi   # TIPO == escritorio
 
 # ---------- 4. Configuración del sistema ----------
 
@@ -400,7 +417,29 @@ install -D -m 0644 "$DIR_REPO/docs/llevix-config.md" "$ROOT/usr/share/doc/llevix
 # Reporte de diagnóstico para la beta (docs/BETA.md): sudo /usr/lib/llevix/report.sh
 install -D -m 0755 "$DIR_REPO/tools/report.sh" "$ROOT/usr/lib/llevix/report.sh"
 
-en_chroot "systemctl enable llevix-estado-arranque.service llevix-firstboot.service     llevix-disco-sistema.service fstrim.timer tmp.mount"
+if [[ "$TIPO" == "instalador" ]]; then
+    paso "Instalador de ISO y capa de Llevix para el sistema que se instale"
+    install -D -m 0755 "$DIR_IMAGE/instalador/instalar-iso.sh" "$ROOT/usr/lib/llevix/instalar-iso.sh"
+    install -D -m 0644 "$DIR_IMAGE/instalador/llevix-instalar-iso.service" \
+        "$ROOT/usr/lib/systemd/system/llevix-instalar-iso.service"
+    CAPA="$ROOT/usr/share/llevix/capa"
+    mkdir -p "$CAPA"
+    cp -a "$DIR_IMAGE/overlay" "$CAPA/overlay"
+    find "$CAPA" -name .gitkeep -delete
+    install -m 0755 "$DIR_IMAGE/firstboot/firstboot.sh" "$CAPA/firstboot.sh"
+    install -m 0644 "$DIR_IMAGE/firstboot/llevix-firstboot.service" "$CAPA/llevix-firstboot.service"
+    install -m 0755 "$DIR_REPO/tools/report.sh" "$CAPA/report.sh"
+    install -m 0644 "$DIR_REPO/docs/llevix-config.md" "$CAPA/llevix-config.md"
+    curl -fsSL --retry 3 -o "$CAPA/jq" "$JQ_URL"
+    echo "$JQ_SHA256  $CAPA/jq" | sha256sum -c - || error "jq no coincide con su SHA256"
+    chmod 0755 "$CAPA/jq"
+    # El instalador no tiene escritorio ni crea cuentas: solo instala la ISO.
+    en_chroot "systemctl enable llevix-instalar-iso.service llevix-disco-sistema.service tmp.mount \
+        && systemctl set-default multi-user.target"
+else
+    en_chroot "systemctl enable llevix-estado-arranque.service llevix-firstboot.service \
+        llevix-disco-sistema.service fstrim.timer tmp.mount"
+fi
 
 mkdir -p "$ROOT/etc/llevix"
 cat > "$ROOT/etc/llevix/version" <<EOF
@@ -480,7 +519,7 @@ wc -l < "$OUT_DIR/llevix-$VARIANTE.paquetes.txt"
 
 paso "Limpiando"
 escribir_fuentes "$MIRROR_PUBLICO" "$MIRROR_SEGURIDAD"
-rm -f "$ROOT/usr/sbin/policy-rc.d"
+rm -f "$ROOT/usr/sbin/policy-rc.d" "$ROOT/etc/apt/apt.conf.d/80llevix-reintentos"
 en_chroot "apt-get clean"
 rm -rf "$ROOT"/var/lib/apt/lists/* "$ROOT"/tmp/* "$ROOT"/var/tmp/*
 # machine-id vacío: cada PC/arranque genera el suyo la primera vez.

@@ -1,0 +1,132 @@
+# "Trae tu ISO": construye la imagen "Llevix instalador" y la prueba con ISOs reales.
+name: iso-propia
+
+on:
+  push:
+    branches: [main, 'fase-*', 'beta-*']
+    paths:
+      - 'image/**'
+      - 'tests/iso-propia-test.sh'
+      - 'tests/lib/**'
+      - 'creator/nucleo/**'
+      - '.github/workflows/iso-propia.yml'
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: iso-propia-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  instalador:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      SALIDA: /mnt/llevix
+      LLEVIX_MIRROR: http://azure.archive.ubuntu.com/ubuntu
+    steps:
+      - uses: actions/checkout@v5
+      - name: Preparar
+        run: |
+          sudo mkdir -p "$SALIDA" && sudo chown "$USER" "$SALIDA"
+          sudo apt-get update
+          sudo apt-get install -y debootstrap gdisk dosfstools exfatprogs btrfs-progs zstd bmap-tools
+      - name: Construir la imagen del instalador
+        run: |
+          sudo --preserve-env=LLEVIX_MIRROR LLEVIX_OUT="$SALIDA" ./image/build.sh instalador 2>&1 | tee "$SALIDA/build.log"
+      - name: Mapa, tamaño y compresión
+        run: |
+          cd "$SALIDA"
+          img=llevix-instalador.img
+          bmaptool create -o "$img.bmap" "$img"
+          stat -c %s "$img" > "$img.tamano"
+          zstd -T0 -9 --rm "$img"
+          sha256sum "$img.zst" > "$img.zst.sha256"
+          ls -lh
+      - uses: actions/upload-artifact@v5
+        with:
+          name: llevix-instalador.img.zst
+          path: |
+            ${{ env.SALIDA }}/llevix-instalador.img.zst
+            ${{ env.SALIDA }}/llevix-instalador.img.zst.sha256
+            ${{ env.SALIDA }}/llevix-instalador.img.bmap
+            ${{ env.SALIDA }}/llevix-instalador.img.tamano
+            ${{ env.SALIDA }}/llevix-instalador.paquetes.txt
+          compression-level: 0
+          retention-days: 14
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: registros-instalador
+          path: ${{ env.SALIDA }}/build.log
+          if-no-files-found: ignore
+
+  probar:
+    needs: instalador
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - nombre: mint-22.3-xfce
+            sumas: https://mirrors.kernel.org/linuxmint/stable/22.3/sha256sum.txt
+            iso: https://mirrors.kernel.org/linuxmint/stable/22.3/linuxmint-22.3-xfce-64bit.iso
+          - nombre: kubuntu-24.04.5
+            sumas: https://cdimage.ubuntu.com/kubuntu/releases/24.04/release/SHA256SUMS
+            iso: https://cdimage.ubuntu.com/kubuntu/releases/24.04/release/kubuntu-24.04.5-desktop-amd64.iso
+          - nombre: ubuntu-24.04.5.1
+            sumas: https://releases.ubuntu.com/24.04/SHA256SUMS
+            iso: https://releases.ubuntu.com/24.04/ubuntu-24.04.5.1-desktop-amd64.iso
+    env:
+      DIR: /mnt/iso
+    steps:
+      - uses: actions/checkout@v5
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: creator
+      - name: Herramientas
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 qemu-utils ovmf socat jq openssl mtools zstd
+          sudo mkdir -p "$DIR" && sudo chown "$USER" "$DIR"
+          df -h /mnt
+      - name: Activar KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo chmod 0666 /dev/kvm
+      - uses: actions/download-artifact@v5
+        with:
+          name: llevix-instalador.img.zst
+          path: ${{ env.DIR }}
+      - name: Descargar y verificar la ISO
+        run: |
+          cd "$DIR"
+          archivo="$(basename "${{ matrix.iso }}")"
+          curl -fsSL -o sumas.txt "${{ matrix.sumas }}"
+          curl -fsSL --retry 3 -o "$archivo" "${{ matrix.iso }}"
+          grep "[ *]$archivo\$" sumas.txt | sed 's/ \*/  /' | sha256sum -c -
+          ls -lh
+      - name: Instalar la ISO y probar
+        env:
+          LLEVIX_TEST_DIR: ${{ env.DIR }}/pruebas
+        run: |
+          ./tests/iso-propia-test.sh "$DIR/llevix-instalador.img.zst" "$DIR/llevix-instalador.img.bmap"             "$DIR/$(basename "${{ matrix.iso }}")"
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: pruebas-iso-${{ matrix.nombre }}
+          path: |
+            ${{ env.DIR }}/pruebas/*.png
+            ${{ env.DIR }}/pruebas/*.log
+          if-no-files-found: ignore
