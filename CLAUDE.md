@@ -89,8 +89,9 @@ Idioma del proyecto: español (código comentado, mensajes al usuario, documenta
 - Fase 3: completa en lo automático (7 variantes verdes: arranque, primer arranque y
   resistencia). Pendiente humano: probar en 3 PCs reales (PENDIENTES.md).
 - Fase 5: adelantada en la rama fase-5 (creador: núcleo y app compilan, pruebas verdes).
-- Fase actual: 4 (en curso, rama fase-4).
-- Siguiente paso: ejecutar prompts/fase-4-ci.md.
+- Fase 4: completa (release.yml; Release de prueba v0.0.1-test con 7 variantes y manifest.json).
+- Fase actual: 5 (en curso, rama fase-5).
+- Siguiente paso: terminar prompts/fase-5-creador.md (instalador en el Release).
 - Herramientas locales: shellcheck con Docker
   (`MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W)":/mnt -w /mnt koalaman/shellcheck:stable -x <archivos>`).
 

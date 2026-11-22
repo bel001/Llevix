@@ -1,0 +1,119 @@
+# Publica una versión de Llevix: al hacer push de una etiqueta vX.Y.Z construye y prueba
+# todas las variantes (workflow build) y crea un GitHub Release con las imágenes,
+# los mapas .bmap, las sumas SHA256, manifest.json y notas en español.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  imagenes:
+    uses: ./.github/workflows/build.yml
+
+  publicar:
+    needs: imagenes
+    runs-on: ubuntu-24.04
+    env:
+      VERSION: ${{ github.ref_name }}
+      DIR: /mnt/release
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Preparar carpeta
+        run: |
+          sudo mkdir -p "$DIR" && sudo chown "$USER" "$DIR"
+          df -h /mnt
+
+      - name: Descargar imágenes construidas
+        uses: actions/download-artifact@v5
+        with:
+          pattern: llevix-*
+          path: ${{ env.DIR }}
+          merge-multiple: true
+
+      - name: Dividir archivos de más de 2 GiB
+        # GitHub Releases no acepta archivos de 2 GiB o más. Las imágenes grandes se
+        # dividen en partes .001, .002, … que el creador vuelve a unir al descargar.
+        run: |
+          cd "$DIR"
+          for f in *.img.zst; do
+            if (( $(stat -c %s "$f") >= 2000 * 1024 * 1024 )); then
+              split -b 1900M -d -a 3 --numeric-suffixes=1 "$f" "$f."
+              rm "$f"
+            fi
+          done
+          ls -lh
+
+      - name: Generar manifest.json
+        run: |
+          ./tools/manifest.sh "$VERSION" "$DIR" \
+            "https://github.com/${{ github.repository }}/releases/download/$VERSION" > "$DIR/manifest.json"
+          jq . "$DIR/manifest.json"
+          jq -e '.variantes | length > 0' "$DIR/manifest.json" >/dev/null
+
+      - name: Escribir notas de la versión
+        run: |
+          anterior="$(git describe --tags --abbrev=0 "$VERSION^" 2>/dev/null || true)"
+          {
+            echo "# Llevix $VERSION"
+            echo
+            echo "Llevix convierte una memoria USB o un disco externo en un Linux portátil y persistente."
+            echo "Escribe la imagen con Rufus (modo DD) o balenaEtcher. El creador para Windows llega en una próxima versión."
+            echo
+            echo "## Variantes"
+            echo
+            jq -r '.variantes[] | "- **\(.nombre)**\(if .ligera then " (ligera)" else "" end): \(.descripcion)"' "$DIR/manifest.json"
+            echo
+            echo "## Cambios"
+            echo
+            if [[ -n "$anterior" ]]; then
+              git log --no-merges --format='- %s' "$anterior..$VERSION"
+            else
+              git log --no-merges --format='- %s' "$VERSION"
+            fi
+            echo
+            echo "## Cómo verificar la descarga"
+            echo
+            echo "Cada imagen tiene su archivo \`.sha256\`. Si la imagen está dividida en partes"
+            echo "(\`.001\`, \`.002\`…), únelas en orden antes de comprobar la suma."
+            echo
+            echo "- Windows (cmd): \`copy /b archivo.img.zst.001 + archivo.img.zst.002 archivo.img.zst\`"
+            echo "- Linux/macOS: \`cat archivo.img.zst.0* > archivo.img.zst\`"
+            echo
+            echo "Luego descomprime con 7-Zip o \`zstd -d\`. El creador de Llevix hace todo esto solo."
+            echo
+            echo "## Código fuente y licencias"
+            echo
+            echo "Llevix está hecho de software libre. Cada imagen incluye paquetes de Ubuntu"
+            echo "(y de Linux Mint en sus variantes), con sus propias licencias (GPL y otras)."
+            echo
+            echo "- Lista exacta de paquetes y versiones de cada imagen: \`llevix-<variante>.paquetes.txt\`."
+            echo "- Código fuente de los paquetes de Ubuntu: https://launchpad.net/ubuntu/+source/<paquete>"
+            echo "  (o \`apt-get source <paquete>=<versión>\`; versiones antiguas en https://snapshot.ubuntu.com)."
+            echo "- Código fuente de los paquetes de Linux Mint: http://packages.linuxmint.com/pool/"
+            echo "- Código propio de Llevix (scripts y creador): https://github.com/${{ github.repository }}/tree/$VERSION"
+            echo
+            echo "Llevix es un proyecto independiente: no está afiliado a Canonical ni a Linux Mint."
+          } > "$DIR/notas.md"
+          cat "$DIR/notas.md"
+
+      - name: Crear el Release
+        run: |
+          cd "$DIR"
+          previa=()
+          [[ "$VERSION" == *-* ]] && previa=(--prerelease)
+          gh release create "$VERSION" --repo "${{ github.repository }}" \
+            --title "Llevix $VERSION" --notes-file notas.md "${previa[@]}" \
+            manifest.json ./*.img.zst* ./*.bmap ./*.paquetes.txt
+          gh release view "$VERSION" --repo "${{ github.repository }}"
