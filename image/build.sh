@@ -238,8 +238,9 @@ if [[ "$BASE" == "ubuntu" ]]; then
     paso "Agregando el repositorio oficial de Mozilla (Firefox)"
     mkdir -p "$ROOT/etc/apt/keyrings"
     curl -fsSL --retry 3 -o "$ROOT/etc/apt/keyrings/packages.mozilla.org.asc" "$MOZILLA_REPO/repo-signing-key.gpg"
-    gpg -n -q --import --import-options import-show "$ROOT/etc/apt/keyrings/packages.mozilla.org.asc" 2>/dev/null \
-        | grep -q "$MOZILLA_HUELLA" || error "la llave de Mozilla no tiene la huella esperada"
+    huella="$(GNUPGHOME="$(mktemp -d)" gpg --show-keys --with-colons \
+        "$ROOT/etc/apt/keyrings/packages.mozilla.org.asc" | awk -F: '$1 == "fpr" {print $10; exit}')"
+    [[ "$huella" == "$MOZILLA_HUELLA" ]] || error "la llave de Mozilla no tiene la huella esperada ($huella)"
     cat > "$ROOT/etc/apt/sources.list.d/mozilla.sources" <<EOF
 Types: deb
 URIs: $MOZILLA_REPO
