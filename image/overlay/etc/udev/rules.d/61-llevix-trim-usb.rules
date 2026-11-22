@@ -1,0 +1,4 @@
+# Llevix: activa TRIM en SSD/NVMe conectados por USB si el adaptador lo admite.
+# El kernel lo deja apagado por precaución; el script comprueba que el disco
+# anuncia soporte de UNMAP antes de activarlo.
+ACTION=="add|change", SUBSYSTEM=="scsi_disk", SUBSYSTEMS=="usb", RUN+="/usr/lib/llevix/trim-usb.sh %k"

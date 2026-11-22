@@ -36,7 +36,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variante: [ubuntu-24.04]
+        variante:
+          - ubuntu-24.04
+          - kubuntu-24.04
+          - xubuntu-24.04
+          - lubuntu-24.04
+          - mint-22-cinnamon
+          - mint-22-mate
+          - mint-22-xfce
     env:
       SALIDA: /mnt/llevix
       LLEVIX_MIRROR: http://azure.archive.ubuntu.com/ubuntu
@@ -83,6 +90,12 @@ jobs:
         env:
           LLEVIX_TEST_DIR: ${{ env.SALIDA }}/pruebas
         run: ./tests/firstboot-test.sh "$SALIDA/llevix-${{ matrix.variante }}.img"
+
+      - name: Probar resistencia (ajustes del disco, estados, apagado brusco)
+        if: ${{ !cancelled() && steps.construir.outcome == 'success' }}
+        env:
+          LLEVIX_TEST_DIR: ${{ env.SALIDA }}/pruebas
+        run: ./tests/resistencia-test.sh "$SALIDA/llevix-${{ matrix.variante }}.img"
 
       - name: Comprimir imagen
         run: |

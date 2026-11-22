@@ -212,15 +212,15 @@ qga_esperar() {
     return 1
 }
 
-# qga_ejecutar <comando sh> → imprime la salida y devuelve el código del comando.
+# qga_ejecutar <comando sh> [segundos] → imprime la salida y devuelve el código del comando.
 qga_ejecutar() {
-    local peticion pid salida codigo
+    local peticion pid salida codigo limite="${2:-120}"
     peticion="$(jq -cn --arg c "$1" \
         '{execute:"guest-exec", arguments:{path:"/bin/sh", arg:["-c",$c], "capture-output":true}}')"
     qga "$peticion" || true
     pid="$(jq -r '.return.pid // empty' <<<"$QGA_RESPUESTA" 2>/dev/null || true)"
     [[ -n "$pid" ]] || { echo "guest-exec falló: $QGA_RESPUESTA" >&2; return 125; }
-    for _ in $(seq 120); do
+    for _ in $(seq "$limite"); do
         qga "{\"execute\":\"guest-exec-status\",\"arguments\":{\"pid\":$pid}}" || true
         if [[ "$(jq -r '.return.exited // false' <<<"$QGA_RESPUESTA" 2>/dev/null)" == "true" ]]; then
             salida="$(jq -r '.return["out-data"] // ""' <<<"$QGA_RESPUESTA" | base64 -d 2>/dev/null || true)"
@@ -260,4 +260,18 @@ qemu_matar() {
         wait "$QEMU_PID" 2>/dev/null || true
     fi
     QEMU_PID=""
+}
+
+# preparar_disco <imagen> <destino> <tamaño> [config.json]
+# Copia la imagen (dispersa), la agranda al tamaño dado (como una memoria real más
+# grande que la imagen) e inyecta el config en la partición EFI con mtools, sin montar
+# nada y sin root.
+preparar_disco() {
+    local imagen="$1" destino="$2" tam="$3" config="${4:-}" inicio
+    cp --sparse=always "$imagen" "$destino"
+    truncate -s "$tam" "$destino"
+    if [[ -n "$config" ]]; then
+        inicio="$(partx -g -o START -n 3 "$imagen" | tr -d ' ')"
+        mcopy -o -i "$destino@@$((inicio * 512))" "$config" ::/llevix-config.json
+    fi
 }

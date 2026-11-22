@@ -86,8 +86,11 @@ Idioma del proyecto: español (código comentado, mensajes al usuario, documenta
 - Fase 0: completa (lint verde en GitHub). Pendiente humano: instalar paquetes locales (PENDIENTES.md).
 - Fase 1: completa (build verde: UEFI+SB, UEFI y BIOS llegan al escritorio en QEMU).
 - Fase 2: completa (primer arranque: usuario, datos, persistencia y errores verdes en CI).
-- Fase actual: 3 (en curso, rama fase-3).
-- Siguiente paso: ejecutar prompts/fase-3-portabilidad.md.
+- Fase 3: completa en lo automático (7 variantes verdes: arranque, primer arranque y
+  resistencia). Pendiente humano: probar en 3 PCs reales (PENDIENTES.md).
+- Fase 5: adelantada en la rama fase-5 (creador: núcleo y app compilan, pruebas verdes).
+- Fase actual: 4 (en curso, rama fase-4).
+- Siguiente paso: ejecutar prompts/fase-4-ci.md.
 - Herramientas locales: shellcheck con Docker
   (`MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W)":/mnt -w /mnt koalaman/shellcheck:stable -x <archivos>`).
 
