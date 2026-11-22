@@ -97,7 +97,9 @@ Idioma del proyecto: español (código comentado, mensajes al usuario, documenta
 - Beta: arreglado "escritorio completo" (red, sonido, Firefox y repositorios de Mint;
   Mint con la lista de su ISO oficial). Versión de prueba v0.0.4-test.
 - Decidido A + B: catálogo más grande y "Trae tu ISO" (docs/planes/catalogo-e-iso-propia.md).
-- Siguiente paso: fase 8 (prompts/fase-8-iso-propia.md), luego fase 9 (prompts/fase-9-catalogo.md).
+- Fase 8: completa en lo automático ("Trae tu ISO": Mint, Kubuntu y Ubuntu reales verdes en
+  CI con el núcleo del creador). Pendiente humano: probarlo en un USB real (PENDIENTES.md).
+- Siguiente paso: fase 9 (prompts/fase-9-catalogo.md).
 - Herramientas locales: shellcheck con Docker
   (`MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W)":/mnt -w /mnt koalaman/shellcheck:stable -x <archivos>`).
 
