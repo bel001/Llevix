@@ -284,3 +284,16 @@ navegador y "la configuración de APT está corrupta".
   No bloquea el avance porque la construcción y las pruebas corren en GitHub Actions.
 - La WSL del dueño tiene Ubuntu 26.04, no 24.04 (la base de Llevix). Para desarrollar
   sirve igual.
+
+## Beta — Arreglo «Acceso denegado» y código fuente (2026-11-22)
+
+- **Creador en Windows:** al crear un USB salía «Acceso denegado (os error 5)». Windows
+  bloquea escribir dentro de particiones montadas: las de un Llevix anterior sin letra y
+  las nuevas que detecta apenas aparece la tabla de particiones. Ahora se bloquean todos
+  los volúmenes (con o sin letra), se borra la tabla vieja avisando a Windows y la tabla
+  nueva (primer MiB) se escribe al final (`creator/nucleo/src/crear.rs`). Prueba nueva en
+  Actions con un disco virtual .vhdx: el modo antiguo reproduce el error y el actual pasa.
+- **Código fuente (GPL):** `tools/fuentes.sh` + `fuentes.yml` guardan en cada Release el
+  código de todos los paquetes (Ubuntu, Mint, Debian, Zorin), con respaldo en Launchpad,
+  el pool de Mint y snapshot.debian.org. Oferta escrita por 3 años en
+  `docs/CODIGO-FUENTE.md` y en cada imagen (`/usr/share/doc/llevix/CODIGO-FUENTE.txt`).

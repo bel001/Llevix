@@ -57,6 +57,13 @@ El piloto automático se detuvo aquí: lo que sigue necesita personas y PCs real
 ## Decisiones abiertas
 - [x] Licencia: MIT (decidido el 2026-11-22; archivo LICENSE)
 - [ ] Confirmar que "Llevix" está libre como marca, dominio y en redes
+- [ ] Código fuente (GPL): cada versión ya guarda el código de sus paquetes y hay una
+      oferta escrita por 3 años (docs/CODIGO-FUENTE.md). Tu parte: si alguien abre un issue
+      pidiendo el código, contestar con el enlace al Release. Decidir qué hacer con las
+      versiones de prueba viejas (v0.0.1 a v0.0.6-test): borrarlas de Releases (si nadie
+      más las descargó) o guardarles el código con Actions → fuentes → Run workflow.
+- [ ] Zorin OS: leer su política de marcas (https://zorin.com) antes de la beta pública;
+      si no permite redistribuir versiones modificadas con su nombre, quitarlo del catálogo.
 - [ ] Firma del instalador de Windows: SignPath Foundation, certificado OV o sin firma
 - [ ] Logos de las distros: hoy la pantalla de inicio de sesión y el fondo muestran los
       logos de Ubuntu/Kubuntu/Mint tal como los trae cada distro (regla "Llevix no cambia el

@@ -122,16 +122,17 @@ jobs:
             echo
             echo "## Código fuente y licencias"
             echo
-            echo "Llevix está hecho de software libre. Cada imagen incluye paquetes de Ubuntu"
-            echo "(y de Linux Mint en sus variantes), con sus propias licencias (GPL y otras)."
+            echo "Llevix está hecho de software libre. Cada imagen incluye paquetes de Ubuntu, Linux Mint,"
+            echo "Debian o Zorin OS, con sus propias licencias (GPL y otras)."
             echo
             echo "- Lista exacta de paquetes y versiones de cada imagen: \`llevix-<variante>.paquetes.txt\`."
-            echo "- Código fuente de los paquetes de Ubuntu: https://launchpad.net/ubuntu/+source/<paquete>"
-            echo "  (o \`apt-get source <paquete>=<versión>\`; versiones antiguas en https://snapshot.ubuntu.com)."
-            echo "- Código fuente de los paquetes de Linux Mint: http://packages.linuxmint.com/pool/"
-            echo "- Código propio de Llevix (scripts y creador): https://github.com/${{ github.repository }}/tree/$VERSION"
+            echo "- **Código fuente de esos paquetes, en esta misma versión:** \`llevix-fuentes-<base>.tar.001\`,"
+            echo "  \`.002\`… (se unen en orden; se agregan después de publicar). Lo que no se pudo obtener"
+            echo "  automáticamente figura en \`llevix-fuentes-<base>.faltantes.txt\`, con dónde encontrarlo."
+            echo "- Oferta escrita (válida 3 años) y detalles: https://github.com/${{ github.repository }}/blob/$VERSION/docs/CODIGO-FUENTE.md"
+            echo "- Código propio de Llevix (scripts y creador, licencia MIT): https://github.com/${{ github.repository }}/tree/$VERSION"
             echo
-            echo "Llevix es un proyecto independiente: no está afiliado a Canonical ni a Linux Mint."
+            echo "Llevix es un proyecto independiente: no está afiliado a Canonical, Linux Mint, Debian ni Zorin."
           } > "$DIR/notas.md"
           cat "$DIR/notas.md"
 
@@ -144,3 +145,10 @@ jobs:
             --title "Llevix $VERSION" --notes-file notas.md "${previa[@]}" \
             manifest.json ./*.img.zst* ./*.bmap ./*.paquetes.txt ./Llevix-Creador-*
           gh release view "$VERSION" --repo "${{ github.repository }}"
+
+  # Código fuente de todos los paquetes de esta versión (cumplimiento de la GPL).
+  fuentes:
+    needs: publicar
+    uses: ./.github/workflows/fuentes.yml
+    with:
+      version: ${{ github.ref_name }}

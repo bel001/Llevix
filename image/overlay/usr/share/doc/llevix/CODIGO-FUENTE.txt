@@ -1,0 +1,37 @@
+Llevix — Código fuente y licencias
+===================================
+
+Este sistema está hecho de software libre. Cada programa conserva su propia licencia
+(GPL, LGPL, MPL, MIT, BSD y otras); las encuentras en /usr/share/doc/<paquete>/copyright.
+El código propio de Llevix se publica bajo la licencia MIT.
+
+Versión y variante de este sistema: /etc/llevix/version
+
+Código fuente
+-------------
+Cada versión publicada en https://github.com/bel001/Llevix/releases incluye la lista
+exacta de paquetes (llevix-<variante>.paquetes.txt) y el código fuente de todos ellos
+(llevix-fuentes-<base>.tar.001, .002…). Detalles:
+https://github.com/bel001/Llevix/blob/main/docs/CODIGO-FUENTE.md
+
+Oferta escrita
+--------------
+Durante al menos tres (3) años desde la última vez que distribuyamos una versión de
+Llevix, entregaremos a cualquier persona que lo pida una copia completa, legible por
+máquina, del código fuente correspondiente a los programas incluidos en esa versión que
+estén bajo la GNU GPL, la GNU LGPL u otra licencia que lo exija, por un costo no mayor
+que el de hacer la copia (por descarga, gratis). Para pedirlo, abre un "issue" en
+https://github.com/bel001/Llevix/issues con el título "Código fuente" y el contenido de
+/etc/llevix/version.
+
+Written offer (English)
+-----------------------
+For at least three (3) years from the last time we distribute a given version of Llevix,
+we will give any third party who asks a complete machine-readable copy of the
+corresponding source code of the programs in that version that are licensed under the
+GNU GPL, the GNU LGPL or any other license that requires it, for a charge no more than
+the cost of physically performing the distribution (free of charge by download). To
+request it, open an issue at https://github.com/bel001/Llevix/issues titled
+"Source code" with the contents of /etc/llevix/version.
+
+Llevix es un proyecto independiente, no afiliado a Canonical, Linux Mint, Debian ni Zorin.
