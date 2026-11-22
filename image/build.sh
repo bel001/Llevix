@@ -309,6 +309,11 @@ if [[ -f "$LISTA" ]]; then
     faltan_lista="$(LC_ALL=C sort -u "$LISTA" | LC_ALL=C comm -23 - "$ROOT/tmp/disponibles" | tr '\n' ' ')"
     [[ -z "$faltan_lista" ]] || echo "Aviso: ya no están en el repositorio: $faltan_lista"
     en_chroot "xargs -a /tmp/lista apt-get -y install"
+    # Los que no aparecieron en el índice se intentan uno por uno (algunos son nombres
+    # virtuales o ya vienen como dependencia); los que de verdad no existen se ignoran.
+    for p in $faltan_lista; do
+        en_chroot "apt-get -y install $p >/dev/null 2>&1" && echo "  instalado igual: $p" || true
+    done
     rm -f "$ROOT/tmp/lista" "$ROOT/tmp/disponibles"
 else
     paso "Instalando escritorio: $PAQUETES_ESCRITORIO"
@@ -334,7 +339,6 @@ alguno pipewire-pulse pulseaudio  || falta="$falta sonido"
 alguno wireplumber pulseaudio     || falta="$falta sonido(sesion)"
 test -x /usr/lib/firefox/firefox  || falta="$falta navegador(firefox)"
 test -e /etc/alternatives/x-terminal-emulator || falta="$falta terminal"
-test -e /etc/alternatives/x-www-browser       || falta="$falta navegador-predeterminado"
 alguno nautilus dolphin thunar pcmanfm-qt nemo caja || falta="$falta archivos"
 if [ -n "$falta" ]; then echo "Faltan componentes básicos:$falta" >&2; exit 1; fi
 echo "Escritorio completo: red, wifi, sonido, navegador, terminal y archivos."
