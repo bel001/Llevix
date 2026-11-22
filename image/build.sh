@@ -364,7 +364,9 @@ if [[ -f "$LISTA" ]]; then
     # Los que no aparecieron en el índice se intentan uno por uno (algunos son nombres
     # virtuales o ya vienen como dependencia); los que de verdad no existen se ignoran.
     for p in $faltan_lista; do
-        en_chroot "apt-get -y install $p >/dev/null 2>&1" && echo "  instalado igual: $p" || true
+        if en_chroot "apt-get -y install $p >/dev/null 2>&1"; then
+            echo "  instalado igual: $p"
+        fi
     done
     rm -f "$ROOT/tmp/lista" "$ROOT/tmp/disponibles"
 else

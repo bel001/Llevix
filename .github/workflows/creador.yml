@@ -120,6 +120,7 @@ jobs:
       - name: Escribir con el creador y arrancar
         env:
           LLEVIX_TEST_DIR: /mnt/e2e
+          LLEVIX_GITHUB_TOKEN: ${{ github.token }}
         run: ./tests/creador-e2e.sh xubuntu-24.04
       - name: Guardar captura
         if: always()
