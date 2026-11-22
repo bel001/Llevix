@@ -205,8 +205,8 @@ jobs:
           cd "$SALIDA"
           zstd -d --rm --sparse llevix-instalador.img.zst
           archivo="$(basename "$ISO_URL")"
-          curl -fsSL -o sumas.txt "$ISO_SUMAS"
-          curl -fsSL --retry 3 -o "$archivo" "$ISO_URL"
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 20 -o sumas.txt "$ISO_SUMAS"
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 20 -o "$archivo" "$ISO_URL"
           grep "[ *]$archivo\$" sumas.txt | sed 's/ \*/  /' | sha256sum -c -
           echo "ISO=$SALIDA/$archivo" >> "$GITHUB_ENV"
 
