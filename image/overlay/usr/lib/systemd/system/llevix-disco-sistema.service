@@ -1,0 +1,10 @@
+[Unit]
+Description=Llevix: ajustes de energía del disco del sistema
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/llevix/disco-sistema.sh
+
+[Install]
+WantedBy=multi-user.target

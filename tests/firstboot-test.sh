@@ -40,6 +40,9 @@ trap 'qemu_matar; rm -rf "$TRABAJO"' EXIT
 fallos=0
 ok()    { printf '  \e[32m[ok]\e[0m    %s\n' "$*"; }
 falla() { printf '  \e[31m[falla]\e[0m %s\n' "$*"; fallos=$((fallos + 1)); }
+# Procesos de la pantalla de inicio de sesión de cada escritorio.
+SALUDO="slick-greeter|unity-greeter|lightdm-gtk-greeter|sddm-greeter|gnome-shell"
+
 comprobar() {  # comprobar <descripción> <comando sh dentro de Llevix>
     # Sin $(...): la conexión con el agente no está disponible dentro de un subshell.
     if qga_ejecutar "$2" > "$TRABAJO/salida.txt" 2>&1; then
@@ -47,20 +50,6 @@ comprobar() {  # comprobar <descripción> <comando sh dentro de Llevix>
     else
         falla "$1"
         sed 's/^/          /' "$TRABAJO/salida.txt"
-    fi
-}
-
-# preparar_disco <destino> <archivo config o vacío>
-# Copia la imagen (dispersa), la agranda a 32 GB como una memoria real más grande
-# que la imagen e inyecta el config en la partición EFI con mtools (sin montar nada).
-preparar_disco() {
-    local destino="$1" config="$2" inicio
-    cp --sparse=always "$IMG" "$destino"
-    truncate -s "$TAM_DISCO" "$destino"
-    if [[ -n "$config" ]]; then
-        inicio="$(partx -g -o START -n 3 "$IMG" | tr -d ' ')"
-        mcopy -o -i "$destino@@$((inicio * 512))" "$config" ::/llevix-config.json
-        mdir -i "$destino@@$((inicio * 512))" ::/ | grep -i llevix-config
     fi
 }
 
@@ -73,12 +62,15 @@ echo "Tamaño original de LLEVIX-DATOS: $tam_datos_original bytes"
     --contrasena "clave-de-prueba" --idioma es_MX.UTF-8 --zona America/Mexico_City \
     --teclado latam --hostname llevix-prueba > "$TRABAJO/config-valido.json"
 
-preparar_disco "$TRABAJO/disco1.img" "$TRABAJO/config-valido.json"
+preparar_disco "$IMG" "$TRABAJO/disco1.img" "$TAM_DISCO" "$TRABAJO/config-valido.json"
 
 echo; echo "Caso 1: primer arranque con config válido"
 qemu_iniciar valido "$MODO" "$TRABAJO/disco1.img" raw
 if qemu_esperar_informe "$TIMEOUT" && qga_esperar 120; then
+    # Captura enseguida: más tarde la pantalla puede apagarse por inactividad.
+    qemu_captura "$DIR_PRUEBAS/firstboot-valido.png"
     echo "  primer arranque: $INFORME_PRIMER_ARRANQUE"
+    comprobar "la pantalla de inicio de sesión está en ejecución" "pgrep -f '$SALUDO' >/dev/null"
     if [[ "$INFORME_PRIMER_ARRANQUE" == *"resultado=ok"* ]]; then
         ok "llevix-firstboot terminó bien"
     else
@@ -105,12 +97,13 @@ else
     falla "el primer arranque no llegó al escritorio"
     tail -n 40 "$QEMU_SERIE" || true
 fi
-qemu_captura "$DIR_PRUEBAS/firstboot-valido.png"
 qemu_apagar || falla "no se apagó ordenadamente"
 
 echo; echo "Caso 2: segundo arranque (persistencia)"
 qemu_iniciar valido "$MODO" "$TRABAJO/disco1.img" raw
 if qemu_esperar_informe "$TIMEOUT" && qga_esperar 120; then
+    qemu_captura "$DIR_PRUEBAS/firstboot-segundo.png"
+    comprobar "la pantalla de inicio de sesión está en ejecución" "pgrep -f '$SALUDO' >/dev/null"
     comprobar "el archivo en Datos sigue ahí" "grep -q persistente /home/$USUARIO/Datos/persistencia.txt"
     comprobar "el archivo en la carpeta personal sigue ahí" "grep -q persistente /home/$USUARIO/persistencia.txt"
     comprobar "el primer arranque no se repitió" "test -e /var/lib/llevix/firstboot-hecho && ! systemctl is-enabled -q llevix-firstboot.service"
@@ -118,19 +111,20 @@ else
     falla "el segundo arranque no llegó al escritorio"
     tail -n 40 "$QEMU_SERIE" || true
 fi
-qemu_captura "$DIR_PRUEBAS/firstboot-segundo.png"
 qemu_apagar || true
 rm -f "$TRABAJO/disco1.img"
 
 # ---------- Caso 3: config con errores ----------
 
 "$DIR_REPO/tools/make-config.sh" --usuario "Nombre Invalido" --contrasena "x" > "$TRABAJO/config-malo.json"
-preparar_disco "$TRABAJO/disco2.img" "$TRABAJO/config-malo.json"
+preparar_disco "$IMG" "$TRABAJO/disco2.img" "$TAM_DISCO" "$TRABAJO/config-malo.json"
 
 echo; echo "Caso 3: config con errores"
 qemu_iniciar malo "$MODO" "$TRABAJO/disco2.img" raw
 if qemu_esperar_informe "$TIMEOUT" && qga_esperar 120; then
+    qemu_captura "$DIR_PRUEBAS/firstboot-error.png"
     echo "  primer arranque: $INFORME_PRIMER_ARRANQUE"
+    comprobar "la pantalla de inicio de sesión está en ejecución" "pgrep -f '$SALUDO' >/dev/null"
     if [[ "$INFORME_PRIMER_ARRANQUE" == *"resultado=error"* ]]; then
         ok "se detectó el error"
     else
@@ -145,7 +139,6 @@ else
     falla "con un config erróneo el sistema no llegó al escritorio"
     tail -n 40 "$QEMU_SERIE" || true
 fi
-qemu_captura "$DIR_PRUEBAS/firstboot-error.png"
 qemu_apagar || true
 
 echo

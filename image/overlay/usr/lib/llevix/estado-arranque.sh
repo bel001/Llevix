@@ -36,5 +36,13 @@ primer_arranque="$(cut -d: -f1 /var/lib/llevix/firstboot-resultado 2>/dev/null |
     echo "LLEVIX-PRIMER-ARRANQUE resultado=$primer_arranque"
     echo "Unidades con fallo:"
     systemctl --failed --no-legend --plain 2>/dev/null || true
+    # Si el gestor de sesión no arrancó, detalles para diagnosticar.
+    if [[ "$gestor" != "active" ]]; then
+        echo "Gestor de sesión configurado: $(cat /etc/X11/default-display-manager 2>/dev/null || echo ninguno)"
+        systemctl status display-manager.service --no-pager -n 15 2>&1 || true
+        for u in $(systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $1}'); do
+            journalctl -b -u "$u" --no-pager -n 15 2>&1 || true
+        done
+    fi
     echo "LLEVIX-ARRANQUE-FIN"
 } >&3 2>/dev/null || true

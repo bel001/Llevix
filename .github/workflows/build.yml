@@ -15,6 +15,8 @@ on:
       - 'tests/**'
       - '.github/workflows/build.yml'
   workflow_dispatch:
+  # El workflow de publicación (release.yml) lo reutiliza.
+  workflow_call:
 
 permissions:
   contents: read
@@ -36,7 +38,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variante: [ubuntu-24.04]
+        variante:
+          - ubuntu-24.04
+          - kubuntu-24.04
+          - xubuntu-24.04
+          - lubuntu-24.04
+          - mint-22-cinnamon
+          - mint-22-mate
+          - mint-22-xfce
     env:
       SALIDA: /mnt/llevix
       LLEVIX_MIRROR: http://azure.archive.ubuntu.com/ubuntu
@@ -84,6 +93,20 @@ jobs:
           LLEVIX_TEST_DIR: ${{ env.SALIDA }}/pruebas
         run: ./tests/firstboot-test.sh "$SALIDA/llevix-${{ matrix.variante }}.img"
 
+      - name: Probar resistencia (ajustes del disco, estados, apagado brusco)
+        if: ${{ !cancelled() && steps.construir.outcome == 'success' }}
+        env:
+          LLEVIX_TEST_DIR: ${{ env.SALIDA }}/pruebas
+        run: ./tests/resistencia-test.sh "$SALIDA/llevix-${{ matrix.variante }}.img"
+
+      - name: Mapa de bloques (.bmap) y tamaño
+        run: |
+          cd "$SALIDA"
+          img="llevix-${{ matrix.variante }}.img"
+          bmaptool create -o "$img.bmap" "$img"
+          stat -c %s "$img" > "$img.tamano"
+          grep -c "<Range" "$img.bmap"
+
       - name: Comprimir imagen
         run: |
           cd "$SALIDA"
@@ -98,6 +121,9 @@ jobs:
           path: |
             ${{ env.SALIDA }}/llevix-${{ matrix.variante }}.img.zst
             ${{ env.SALIDA }}/llevix-${{ matrix.variante }}.img.zst.sha256
+            ${{ env.SALIDA }}/llevix-${{ matrix.variante }}.img.bmap
+            ${{ env.SALIDA }}/llevix-${{ matrix.variante }}.img.tamano
+            ${{ env.SALIDA }}/llevix-${{ matrix.variante }}.paquetes.txt
           compression-level: 0
           retention-days: 14
 

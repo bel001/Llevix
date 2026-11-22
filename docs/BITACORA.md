@@ -2,6 +2,66 @@
 
 Lo más reciente arriba. Cada fase anota qué se hizo, qué se decidió y qué quedó pendiente.
 
+## Fase 4 — Publicación automática (2026-11-21)
+
+**Qué se hizo**
+- `build.yml` se puede reutilizar (`workflow_call`) y ahora deja por variante: imagen
+  comprimida, `.sha256`, `.bmap` (`bmaptool create`), tamaño y lista de paquetes.
+- `tools/manifest.sh` genera `manifest.json` (formato 1) a partir de esos archivos y de
+  `image/distros/*.conf`.
+- `release.yml`: con una etiqueta `v*` construye y prueba las 7 variantes, divide los
+  archivos de 2 GiB o más en partes de 1900 MiB, genera manifest y notas en español
+  (variantes, cambios, cómo verificar y unir partes, código fuente y licencias) y crea
+  el Release (pre-release si la etiqueta tiene guion).
+- Prueba: `v0.0.1-test` publicó 38 archivos (7 variantes en 2 o 3 partes cada una).
+  El núcleo del creador validó el `manifest.json` y un `.bmap` reales (4.824 rangos,
+  4,37 GB con datos de 30 GB, suma interna correcta).
+
+**Decisiones**
+- Dividir en partes en lugar de otro alojamiento: GitHub Releases no tiene límite de
+  tamaño total, solo 2 GiB por archivo; el creador lee las partes en cadena.
+- Lista de paquetes con paquete fuente y versión fuente para cumplir con la GPL.
+
+**Pendiente**
+- El instalador del creador se agrega al Release en la fase 5.
+## Fase 3 — Portabilidad, resistencia y variantes (2026-11-21)
+
+**Qué se hizo**
+- Portabilidad: initramfs con `MODULES=most`, entrada de GRUB "Llevix (modo gráficos
+  seguros)" con `nomodeset`, sin conexiones de red guardadas.
+- Cuidado del disco: journald en RAM, `/tmp` en RAM, `noatime` y zstd, `fstrim.timer`,
+  TRIM para SSD/NVMe por USB (solo si el adaptador anuncia UNMAP), sin suspensión USB
+  ni apagado del HDD del sistema, planificador de E/S por tipo de disco.
+- Resistencia: subvolumen `@snapshots`; antes de cada `apt` se guarda un estado (máximo 5)
+  que aparece en GRUB en "Llevix: volver a un estado anterior".
+- 7 variantes: Ubuntu, Kubuntu, Xubuntu, Lubuntu (24.04) y Linux Mint 22.3 Cinnamon,
+  MATE y Xfce. Matriz en GitHub Actions: las 7 pasan arranque (UEFI+SB, UEFI, BIOS),
+  primer arranque y `tests/resistencia-test.sh` (25 comprobaciones, incluido un corte de
+  corriente durante una escritura de 8 GB y un `btrfs scrub` sin errores).
+- Sin config del creador: GNOME ofrece crear la cuenta; en los demás escritorios se crea
+  `llevix`/`llevix` con cambio de contraseña obligatorio (`LLEVIX-LEEME.txt` en la ESP).
+
+**Decisiones**
+- Interfaces de red con nombres predecibles de systemd; ninguna config usa un nombre fijo.
+- Mint: repositorio `packages.linuxmint.com` (22.3 "zena") con prioridad 700 como Mint;
+  llave verificada por SHA256 (el servidor no tiene HTTPS); se usa el llavero de
+  `/etc/apt/trusted.gpg.d` (el de `/usr/share/keyrings` es de 2016 y no sirve).
+- Mint: se instalan `lightdm` y `slick-greeter` explícitamente (los metapaquetes de
+  Cinnamon y MATE no los traen).
+- Los estados guardados se arrancan como sistemas completos (su fstab apunta a su propio
+  subvolumen); `@home` no se incluye, así que volver atrás no borra archivos.
+
+**Problemas encontrados**
+- `findmnt -R` sin `-l` devolvía dibujos de árbol: la limpieza no desmontaba bien.
+- Las capturas tomadas tras varios minutos salían negras (pantalla apagada por
+  inactividad): ahora se captura al llegar y se comprueba el proceso del saludo.
+
+**Pendiente**
+- Prueba humana en 3 PCs reales (ver PENDIENTES.md).
+- Firefox (snap) no está en las variantes de Ubuntu; en Mint sí (paquete .deb).
+- El saludo de inicio de sesión de Mint muestra el logo de Mint (no se cambia el
+  escritorio). Decidir si quitar logos de las distros en imágenes modificadas.
+- Probar Secure Boot con firmware que tenga solo el certificado 2011, solo el 2023 y ambos.
 ## Fase 2 — Primer arranque personalizado (2026-11-21)
 
 **Qué se hizo**

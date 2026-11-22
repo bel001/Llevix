@@ -84,9 +84,29 @@ if [[ -f "$HECHO" ]]; then
 fi
 
 if [[ ! -f "$CONFIG" ]]; then
-    log "no hay $CONFIG; se usará la pantalla de bienvenida de la distribución"
     mkdir -p "$DIR_ESTADO"
     echo "sin-config" > "$RESULTADO"
+    # GNOME (gdm3) ofrece crear la cuenta en su bienvenida. Los demás escritorios
+    # (KDE, Xfce, LXQt, Cinnamon, MATE) no: se crea una cuenta "llevix" con contraseña
+    # "llevix" que hay que cambiar en el primer inicio de sesión.
+    if grep -q gdm3 /etc/X11/default-display-manager 2>/dev/null; then
+        log "no hay $CONFIG; se usará la bienvenida de la distribución para crear la cuenta"
+    elif ! getent passwd llevix >/dev/null; then
+        log "no hay $CONFIG; se crea la cuenta 'llevix' (contraseña 'llevix', hay que cambiarla)"
+        grupos=""
+        for g in adm cdrom sudo dip plugdev lpadmin users; do
+            getent group "$g" >/dev/null && grupos+="${grupos:+,}$g"
+        done
+        useradd --create-home --shell /bin/bash --comment "Llevix" --groups "$grupos" \
+            --password "$(openssl passwd -6 llevix)" llevix
+        chage -d 0 llevix
+        printf '%s\r\n' \
+            "Llevix arrancó sin configuración del creador." \
+            "Se creó la cuenta: usuario 'llevix', contraseña 'llevix'." \
+            "Al iniciar sesión por primera vez te pedirá elegir una contraseña nueva." > "$ESP/LLEVIX-LEEME.txt"
+        echo "sin-config: cuenta llevix" > "$RESULTADO"
+        en_pantalla "Llevix: usuario 'llevix', contraseña 'llevix' (te pedirá cambiarla)"
+    fi
     marcar_hecho
     exit 0
 fi

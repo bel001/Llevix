@@ -1,0 +1,3 @@
+// Llevix: antes de instalar o actualizar paquetes, guarda un estado del sistema
+// (snapshot btrfs) al que se puede volver desde el menú de arranque.
+DPkg::Pre-Invoke { "if [ -x /usr/lib/llevix/guardar-estado.sh ]; then /usr/lib/llevix/guardar-estado.sh apt || true; fi"; };

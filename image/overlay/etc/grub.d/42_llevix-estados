@@ -1,0 +1,28 @@
+#!/bin/sh
+# Llevix: submenú "Volver a un estado anterior" con los snapshots de /.snapshots
+# (los guarda /usr/lib/llevix/guardar-estado.sh antes de cada actualización).
+set -e
+
+[ -d /.snapshots ] || exit 0
+uuid="${GRUB_DEVICE_UUID:?}"
+
+entradas=""
+# Se recorren en orden y cada entrada se pone delante: el estado más reciente queda primero.
+for ruta in /.snapshots/*; do
+    d="$(basename "$ruta")"
+    [ -e "/.snapshots/$d/boot/vmlinuz" ] && [ -e "/.snapshots/$d/boot/initrd.img" ] || continue
+    fecha="$(echo "$d" | sed -n 's#^\([0-9]\{4\}\)\([0-9]\{2\}\)\([0-9]\{2\}\)-\([0-9]\{2\}\)\([0-9]\{2\}\).*#\3/\2/\1 \4:\5#p')"
+    entradas="
+	menuentry 'Estado del $fecha' --class gnu-linux {
+		search --no-floppy --fs-uuid --set=root $uuid
+		linux /@snapshots/$d/boot/vmlinuz root=UUID=$uuid ro rootflags=subvol=@snapshots/$d quiet splash
+		initrd /@snapshots/$d/boot/initrd.img
+	}$entradas"
+done
+
+[ -n "$entradas" ] || exit 0
+echo "Agregando los estados anteriores del sistema" >&2
+cat <<FIN
+submenu 'Llevix: volver a un estado anterior' {$entradas
+}
+FIN
