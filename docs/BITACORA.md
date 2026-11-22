@@ -2,6 +2,22 @@
 
 Lo más reciente arriba. Cada fase anota qué se hizo, qué se decidió y qué quedó pendiente.
 
+## Fase 6 — Preparación de la beta (2026-11-21)
+
+**Qué se hizo**
+- `tools/report.sh` (en la imagen como `/usr/lib/llevix/report.sh`): reporte de
+  diagnóstico sin datos personales, guardado en `~/Datos`. Probado en las 7 variantes.
+- Plantillas de issues en español: "Funcionó en mi PC", "No arranca", "Algo no funciona".
+- `docs/BETA.md` (guía para testers) y README con descarga, requisitos, variantes,
+  cómo arrancar, preguntas frecuentes y lugares marcados para los GIFs.
+- `PENDIENTES.md` con las tareas humanas de la beta.
+- Release: el instalador del creador se busca dentro de las subcarpetas del artefacto
+  (`v0.0.2-test` falló en ese paso; `v0.0.3-test` lo verifica).
+
+**Estado**
+- El piloto automático se detiene aquí, como indica AUTOPILOTO.md: lo que sigue necesita
+  PCs reales, testers y decisiones del dueño (ver PENDIENTES.md).
+
 ## Fase 5 — Creador para Windows (2026-11-21)
 
 **Qué se hizo**

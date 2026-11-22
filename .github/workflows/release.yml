@@ -55,10 +55,14 @@ jobs:
 
       - name: Nombres sin espacios para el instalador
         run: |
-          cd "$DIR/creador"
-          for f in *.exe; do mv "$f" "../Llevix-Creador-$VERSION-setup.exe"; done
-          for f in *.msi; do mv "$f" "../Llevix-Creador-$VERSION.msi"; done
-          cd .. && rmdir creador && ls -lh
+          # El artefacto conserva las subcarpetas nsis/ y msi/ de Tauri.
+          exe="$(find "$DIR/creador" -name '*.exe' | head -n1)"
+          msi="$(find "$DIR/creador" -name '*.msi' | head -n1)"
+          [[ -n "$exe" && -n "$msi" ]] || { echo "No se encontró el instalador"; find "$DIR/creador"; exit 1; }
+          mv "$exe" "$DIR/Llevix-Creador-$VERSION-setup.exe"
+          mv "$msi" "$DIR/Llevix-Creador-$VERSION.msi"
+          rm -rf "$DIR/creador"
+          ls -lh "$DIR"
 
       - name: Dividir archivos de más de 2 GiB
         # GitHub Releases no acepta archivos de 2 GiB o más. Las imágenes grandes se

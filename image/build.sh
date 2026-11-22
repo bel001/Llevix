@@ -304,6 +304,8 @@ install -D -m 0755 "$DIR_IMAGE/firstboot/firstboot.sh" "$ROOT/usr/lib/llevix/fir
 install -D -m 0644 "$DIR_IMAGE/firstboot/llevix-firstboot.service" \
     "$ROOT/usr/lib/systemd/system/llevix-firstboot.service"
 install -D -m 0644 "$DIR_REPO/docs/llevix-config.md" "$ROOT/usr/share/doc/llevix/llevix-config.md"
+# Reporte de diagnóstico para la beta (docs/BETA.md): sudo /usr/lib/llevix/report.sh
+install -D -m 0755 "$DIR_REPO/tools/report.sh" "$ROOT/usr/lib/llevix/report.sh"
 
 en_chroot "systemctl enable llevix-estado-arranque.service llevix-firstboot.service     llevix-disco-sistema.service fstrim.timer tmp.mount"
 

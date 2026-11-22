@@ -106,6 +106,8 @@ if qemu_esperar_informe "$TIMEOUT" && qga_esperar 120; then
     comprobar "la pantalla de inicio de sesión está en ejecución" "pgrep -f '$SALUDO' >/dev/null"
     comprobar "el archivo en Datos sigue ahí" "grep -q persistente /home/$USUARIO/Datos/persistencia.txt"
     comprobar "el archivo en la carpeta personal sigue ahí" "grep -q persistente /home/$USUARIO/persistencia.txt"
+    comprobar "el reporte de diagnóstico se genera en Datos"         "SUDO_USER=$USUARIO /usr/lib/llevix/report.sh >/dev/null && ls /home/$USUARIO/Datos/llevix-reporte-*.txt"
+    comprobar "el reporte dice el modo de arranque y no tiene datos personales"         "f=\$(ls /home/$USUARIO/Datos/llevix-reporte-*.txt | head -n1); grep -q 'Arranque: UEFI' \"\$f\" && ! grep -q '$USUARIO' \"\$f\" && ! grep -Eq '([0-9a-f]{2}:){5}[0-9a-f]{2}' \"\$f\""
     comprobar "el primer arranque no se repitió" "test -e /var/lib/llevix/firstboot-hecho && ! systemctl is-enabled -q llevix-firstboot.service"
 else
     falla "el segundo arranque no llegó al escritorio"
