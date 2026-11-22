@@ -1,0 +1,49 @@
+name: "✅ Funcionó en mi PC"
+description: Cuéntanos en qué PC probaste Llevix y que todo anduvo bien.
+title: "[Funcionó] <marca y modelo de la PC>"
+labels: ["hardware", "funcionó"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ¡Gracias por probar Llevix! Cada PC probada nos ayuda mucho.
+        Si puedes, ejecuta `tools/report.sh` dentro de Llevix y adjunta el archivo que genera.
+  - type: input
+    id: pc
+    attributes:
+      label: Marca y modelo de la PC
+      placeholder: "Ej.: Lenovo ThinkPad T480"
+    validations:
+      required: true
+  - type: dropdown
+    id: variante
+    attributes:
+      label: Variante de Llevix
+      options: [Ubuntu, Kubuntu, Xubuntu, Lubuntu, Mint Cinnamon, Mint MATE, Mint Xfce]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versión de Llevix
+      placeholder: "Ej.: v0.1.0"
+  - type: dropdown
+    id: arranque
+    attributes:
+      label: Modo de arranque
+      options: ["UEFI con Secure Boot", "UEFI sin Secure Boot", "BIOS antiguo (legacy)", "No sé"]
+  - type: input
+    id: disco
+    attributes:
+      label: Disco usado
+      placeholder: "Ej.: memoria USB 3.2 de 64 GB, SSD externo USB-C de 500 GB"
+  - type: textarea
+    id: comentarios
+    attributes:
+      label: Comentarios
+      description: WiFi, sonido, video, suspensión, celular… todo lo que quieras contar.
+  - type: textarea
+    id: reporte
+    attributes:
+      label: Reporte (opcional)
+      description: Arrastra aquí el archivo de tools/report.sh.

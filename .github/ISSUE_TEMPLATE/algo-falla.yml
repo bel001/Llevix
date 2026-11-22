@@ -1,0 +1,41 @@
+name: "🔧 Algo no funciona"
+description: Llevix arranca, pero algo falla (WiFi, sonido, video, datos, celular…).
+title: "[Falla] <qué no funciona>"
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ejecuta `tools/report.sh` dentro de Llevix (te dice dónde guardó el archivo) y adjúntalo.
+        El reporte quita tus datos personales, pero revísalo antes de subirlo.
+  - type: input
+    id: pc
+    attributes:
+      label: Marca y modelo de la PC
+    validations:
+      required: true
+  - type: dropdown
+    id: variante
+    attributes:
+      label: Variante de Llevix
+      options: [Ubuntu, Kubuntu, Xubuntu, Lubuntu, Mint Cinnamon, Mint MATE, Mint Xfce]
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: ¿Qué no funciona?
+      options: [WiFi o red, Sonido, Video o pantalla, Teclado o touchpad, Partición de datos (LLEVIX-DATOS), Celular no ve los datos, Suspender o apagar, Actualizaciones, Otra cosa]
+    validations:
+      required: true
+  - type: textarea
+    id: detalle
+    attributes:
+      label: Qué pasa y qué esperabas
+    validations:
+      required: true
+  - type: textarea
+    id: reporte
+    attributes:
+      label: Reporte
+      description: Arrastra aquí el archivo de tools/report.sh.

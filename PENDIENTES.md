@@ -29,6 +29,23 @@ vuelve a pegar el prompt de AUTOPILOTO.md para que continúe.
   4. Crea un USB (32 GB o más) y comprueba que arranca y que tu usuario y contraseña funcionan.
   5. Anota el resultado en `tests/hardware-matrix.md`.
 
+## Beta (fase 6) — tareas humanas
+El piloto automático se detuvo aquí: lo que sigue necesita personas y PCs reales.
+- [ ] Probar en **10 PCs distintas** (Intel, AMD, NVIDIA, una vieja con BIOS) y llenar
+      `tests/hardware-matrix.md`. Si algo falla: dentro de Llevix, `sudo /usr/lib/llevix/report.sh`
+      y abrir un issue con la plantilla que corresponda.
+- [ ] Probar la partición de datos en **2 celulares Android** con USB-C (anotar en la matriz).
+- [ ] Grabar 2 GIFs para el README: el asistente del creador y el arranque hasta el
+      escritorio. Guardarlos en `docs/img/creador.gif` y `docs/img/arranque.gif` (los
+      lugares están marcados en el README con `<!-- GIF -->`).
+- [ ] Conseguir **20 o más testers** (grupos de Linux en español: Telegram, Discord,
+      r/linuxesp). Pasarles `docs/BETA.md`.
+- [ ] Publicar la primera versión beta: crear la etiqueta `v0.1.0-beta.1`
+      (`git tag -a v0.1.0-beta.1 -m "Beta 1" && git push origin v0.1.0-beta.1`).
+      El Release se arma solo.
+- [ ] Borrar los Releases de prueba `v0.0.1-test` y `v0.0.2-test` cuando ya no sirvan.
+- [ ] Por cada issue, decirle a Claude Code: "revisa el issue #N y corrígelo".
+
 ## Decisiones abiertas
 - [ ] Licencia: GPL-3.0 (recomendada) o MIT — decidir antes de la beta
 - [ ] Confirmar que "Llevix" está libre como marca, dominio y en redes

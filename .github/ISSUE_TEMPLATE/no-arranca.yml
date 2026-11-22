@@ -1,0 +1,55 @@
+name: "🛑 No arranca"
+description: Llevix no llega al escritorio en tu PC.
+title: "[No arranca] <marca y modelo de la PC>"
+labels: ["hardware", "no-arranca"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Lamentamos el problema. Con estos datos podemos intentar arreglarlo.
+        **Nunca desactives Secure Boot**: en PCs con BitLocker, Windows podría pedirte la clave de recuperación.
+  - type: input
+    id: pc
+    attributes:
+      label: Marca y modelo de la PC
+    validations:
+      required: true
+  - type: dropdown
+    id: variante
+    attributes:
+      label: Variante de Llevix
+      options: [Ubuntu, Kubuntu, Xubuntu, Lubuntu, Mint Cinnamon, Mint MATE, Mint Xfce]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versión de Llevix
+  - type: dropdown
+    id: hasta
+    attributes:
+      label: ¿Hasta dónde llega?
+      options:
+        - "El USB no aparece en el menú de arranque"
+        - "Aparece un error de Secure Boot (Secure Boot violation / Verification failed)"
+        - "Se ve el menú de GRUB y después se queda en negro"
+        - "Se queda en una pantalla con texto o con el logo"
+        - "Llega a la pantalla de inicio de sesión pero no puedo entrar"
+        - "Otra cosa (explícala abajo)"
+    validations:
+      required: true
+  - type: checkboxes
+    id: probado
+    attributes:
+      label: ¿Qué probaste?
+      options:
+        - label: Otro puerto USB (mejor uno directo de la placa)
+        - label: La opción «Llevix (modo gráficos seguros)» del menú
+        - label: Volver a crear el USB con el creador
+  - type: textarea
+    id: detalle
+    attributes:
+      label: Qué pasó exactamente
+      description: Si hay un mensaje en pantalla, escríbelo o adjunta una foto.
+    validations:
+      required: true
