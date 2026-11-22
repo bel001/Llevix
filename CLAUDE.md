@@ -88,10 +88,11 @@ Idioma del proyecto: español (código comentado, mensajes al usuario, documenta
 - Fase 2: completa (primer arranque: usuario, datos, persistencia y errores verdes en CI).
 - Fase 3: completa en lo automático (7 variantes verdes: arranque, primer arranque y
   resistencia). Pendiente humano: probar en 3 PCs reales (PENDIENTES.md).
-- Fase 5: adelantada en la rama fase-5 (creador: núcleo y app compilan, pruebas verdes).
 - Fase 4: completa (release.yml; Release de prueba v0.0.1-test con 7 variantes y manifest.json).
-- Fase actual: 5 (en curso, rama fase-5).
-- Siguiente paso: terminar prompts/fase-5-creador.md (instalador en el Release).
+- Fase 5: completa en lo automático (creador: pruebas en Linux y Windows, instalador
+  .exe/.msi, prueba e2e con QEMU). Pendiente humano: crear un USB real (PENDIENTES.md).
+- Fase actual: 6 (preparar la beta y detenerse; rama fase-6).
+- Siguiente paso: ejecutar prompts/fase-6-beta.md.
 - Herramientas locales: shellcheck con Docker
   (`MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W)":/mnt -w /mnt koalaman/shellcheck:stable -x <archivos>`).
 

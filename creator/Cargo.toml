@@ -1,0 +1,11 @@
+# Espacio de trabajo del creador de Llevix.
+# - nucleo: lógica sin interfaz (se prueba en Linux y en Windows).
+# - src-tauri: la app de escritorio para Windows.
+[workspace]
+members = ["nucleo", "src-tauri"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+publish = false

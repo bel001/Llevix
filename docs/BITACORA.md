@@ -2,6 +2,37 @@
 
 Lo más reciente arriba. Cada fase anota qué se hizo, qué se decidió y qué quedó pendiente.
 
+## Fase 5 — Creador para Windows (2026-11-21)
+
+**Qué se hizo**
+- `creator/nucleo` (Rust): manifest, descarga con reanudación y SHA256 por parte y total,
+  lectura del `.bmap` (compatible con `bmaptool`, incluida su suma interna), escritura
+  zstd en streaming solo de los bloques con datos (con suma por rango y verificación
+  final), GPT + escritura de `llevix-config.json` en la ESP con `fatfs` sin montar,
+  config con hash SHA-512 (`sha-crypt`) y las mismas reglas que `firstboot.sh`, filtro
+  de discos (solo USB, nunca el del sistema) y acceso a discos de Windows por FFI.
+- `creator/src-tauri` + `creator/src`: app Tauri 2 + Svelte 5 en español con el asistente
+  de 3 pasos, doble confirmación si el disco tiene datos, progreso, cancelación y
+  pantalla final con teclas por marca y el aviso de Secure Boot/BitLocker. Pide
+  administrador por manifiesto.
+- `.github/workflows/creador.yml`: 32 pruebas del núcleo en Linux y en Windows (en
+  Windows incluye la enumeración real de discos, que nunca ofrece ni abre el del sistema),
+  `tauri build` → instalador `.exe` (NSIS, 3 MB) y `.msi` (4,3 MB).
+- Prueba de punta a punta (`tests/creador-e2e.sh`): el núcleo descarga la versión
+  publicada, la escribe en un disco simulado de 32 GiB con una cuenta, y QEMU arranca
+  ese disco con Secure Boot: cuenta, contraseña, idioma, zona y datos correctos.
+- `release.yml` agrega el instalador del creador al Release.
+
+**Decisiones**
+- FFI propio a kernel32 en lugar de la biblioteca `windows` (menos dependencias, sin
+  cambios de API entre versiones).
+- Se borran el primer y el último MiB del disco antes de escribir (copia vieja de la GPT).
+- Discos con sectores lógicos de 4096 bytes no se ofrecen (la imagen usa 512).
+- La búsqueda de versión usa la última estable y, si no hay, la pre-release más nueva.
+
+**Pendiente**
+- Prueba humana: crear un USB real con el creador y arrancarlo (PENDIENTES.md).
+- Firma del instalador (Windows SmartScreen avisará mientras no esté firmado).
 ## Fase 4 — Publicación automática (2026-11-21)
 
 **Qué se hizo**

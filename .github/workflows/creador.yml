@@ -1,0 +1,126 @@
+# Compila y prueba el creador de Llevix (Tauri 2 + Svelte) y genera el instalador de Windows.
+name: creador
+
+on:
+  push:
+    branches: [main, 'fase-*']
+    paths:
+      - 'creator/**'
+      - 'tests/creador-e2e.sh'
+      - '.github/workflows/creador.yml'
+  pull_request:
+    paths:
+      - 'creator/**'
+      - 'tests/creador-e2e.sh'
+      - '.github/workflows/creador.yml'
+  workflow_dispatch:
+  # La publicación (release.yml) lo reutiliza solo para el instalador, sin la prueba e2e.
+  workflow_call:
+    inputs:
+      solo_instalador:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: creador-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Lógica pura (bmap, escritura, config, filtro de discos con discos simulados) en Linux.
+  nucleo-linux:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+        working-directory: creator
+    steps:
+      - uses: actions/checkout@v5
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: creator
+      - name: Pruebas del núcleo
+        run: cargo test -p llevix-nucleo
+
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: creator
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: creator/package-lock.json
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: creator
+
+      - name: Pruebas del núcleo en Windows (incluye discos reales en modo solo lectura)
+        run: cargo test -p llevix-nucleo
+
+      - name: Instalar dependencias de la interfaz
+        run: npm ci
+
+      - name: Compilar el instalador
+        run: npx tauri build
+
+      - name: Listar instaladores
+        run: ls -la target/release/bundle/nsis target/release/bundle/msi
+
+      - name: Guardar instaladores
+        uses: actions/upload-artifact@v5
+        with:
+          name: creador-llevix-windows
+          path: |
+            creator/target/release/bundle/nsis/*.exe
+            creator/target/release/bundle/msi/*.msi
+          retention-days: 14
+
+  # De punta a punta: el núcleo del creador descarga la última versión publicada, la
+  # escribe en un disco SIMULADO (archivo) con una cuenta, y QEMU arranca ese disco.
+  e2e:
+    if: ${{ !inputs.solo_instalador }}
+    needs: nucleo-linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: creator
+      - name: Instalar herramientas
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 qemu-utils ovmf socat jq openssl
+          sudo mkdir -p /mnt/e2e && sudo chown "$USER" /mnt/e2e
+      - name: Activar KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"'             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo chmod 0666 /dev/kvm
+      - name: Escribir con el creador y arrancar
+        env:
+          LLEVIX_TEST_DIR: /mnt/e2e
+        run: ./tests/creador-e2e.sh xubuntu-24.04
+      - name: Guardar captura
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: creador-e2e
+          path: |
+            /mnt/e2e/*.png
+            /mnt/e2e/*.log
+          if-no-files-found: ignore

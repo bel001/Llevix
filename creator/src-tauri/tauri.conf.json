@@ -1,0 +1,49 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Creador de Llevix",
+  "version": "0.1.0",
+  "identifier": "io.github.bel001.llevix",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Creador de Llevix",
+        "width": 900,
+        "height": 720,
+        "minWidth": 640,
+        "minHeight": 560
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi"],
+    "publisher": "Proyecto Llevix",
+    "shortDescription": "Crea una memoria USB con Linux portátil",
+    "longDescription": "Crea memorias USB y discos externos con Linux portátil y persistente que arrancan en cualquier PC.",
+    "category": "Utility",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "languages": ["Spanish"],
+        "installMode": "perMachine"
+      },
+      "wix": {
+        "language": "es-ES"
+      }
+    }
+  }
+}

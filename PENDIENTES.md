@@ -20,6 +20,15 @@ vuelve a pegar el prompt de AUTOPILOTO.md para que continúe.
      entra con usuario `llevix` y contraseña `llevix` (te pide cambiarla).
   6. Anota cada PC en `tests/hardware-matrix.md`.
 
+- [ ] **Probar el creador en una PC con Windows** (fase 5).
+  1. **Primero desconecta cualquier disco externo con datos importantes.**
+  2. Descarga el instalador `Llevix-Creador-…-setup.exe` del último Release (o el artefacto
+     `creador-llevix-windows` del workflow "creador").
+  3. Instálalo. Windows mostrará "Windows protegió tu PC" porque el instalador no está
+     firmado: "Más información" → "Ejecutar de todas formas".
+  4. Crea un USB (32 GB o más) y comprueba que arranca y que tu usuario y contraseña funcionan.
+  5. Anota el resultado en `tests/hardware-matrix.md`.
+
 ## Decisiones abiertas
 - [ ] Licencia: GPL-3.0 (recomendada) o MIT — decidir antes de la beta
 - [ ] Confirmar que "Llevix" está libre como marca, dominio y en redes

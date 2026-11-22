@@ -1,0 +1,21 @@
+[package]
+name = "llevix-nucleo"
+description = "Lógica del creador de Llevix: imágenes, bmap, escritura, configuración y discos"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+hex = "0.4"
+zstd = "0.13"
+roxmltree = "0.20"
+fatfs = "0.3"
+sha-crypt = "0.5"
+thiserror = "1"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+
+[dev-dependencies]
+tempfile = "3"
