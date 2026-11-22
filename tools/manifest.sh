@@ -29,7 +29,7 @@ for conf in "$DIR_REPO"/image/distros/*.conf; do
         # shellcheck source=/dev/null
         source "$conf"
         jq -cn --arg id "$id" --arg nombre "$NOMBRE_VISIBLE" --arg desc "${DESCRIPCION:-}" \
-            --arg base "$BASE" --arg tipo "${TIPO:-escritorio}" --argjson ligera "$([[ "${LIGERA:-no}" == si ]] && echo true || echo false)" \
+            --arg base "$BASE" --arg tipo "$([[ "${TIPO:-escritorio}" == instalador ]] && echo instalador || echo escritorio)" --argjson ligera "$([[ "${LIGERA:-no}" == si ]] && echo true || echo false)" \
             '{id:$id, tipo:$tipo, nombre:$nombre, descripcion:$desc, base:$base, ligera:$ligera}'
     )"
 

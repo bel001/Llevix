@@ -90,6 +90,10 @@ losetup -d "$cab_loop"
 [[ "$(head -n1 <<<"$encabezado")" == "LLEVIX-ISO 1" ]] || fallar "no hay ninguna ISO guardada en el disco"
 leer() { sed -n "s/^$1=//p" <<<"$encabezado" | head -n1; }
 tamano="$(leer tamano)"; sha="$(leer sha256)"
+# modo=imagen: lo usa image/desde-iso.sh para construir el catálogo en CI (no amplía los
+# datos y apaga al terminar). Sin modo (lo que escribe el creador): instalación normal.
+modo="$(leer modo)"
+[[ "$modo" == "imagen" ]] || modo="usuario"
 nombre_iso="$(leer nombre | tr -cd 'A-Za-z0-9 ._()+-' | cut -c1-80)"
 if ! [[ "$tamano" =~ ^[0-9]+$ ]] || (( tamano <= 0 || tamano > MAX_ISO )); then fallar "el tamaño de la ISO no es válido"; fi
 [[ "$sha" =~ ^[0-9a-f]{64}$ ]] || fallar "la suma SHA256 de la ISO no es válida"
@@ -326,20 +330,31 @@ rm -f "$D/usr/sbin/policy-rc.d"
 paso "Ampliando el espacio"
 # btrfs pasa a ocupar también la zona donde estaba la ISO.
 btrfs filesystem resize max "$T/tope" >/dev/null
-# LLEVIX-DATOS (partición 1, al final) ocupa el resto del disco.
-sgdisk -e "$DISCO" >/dev/null 2>&1 || true
-inicio="$(sgdisk -i 1 "$DISCO" | awk '/^First sector:/ {print $3}')"
-sgdisk -d 1 -n "1:$inicio:0" -t 1:0700 -c 1:LLEVIX-DATOS "$DISCO" >/dev/null 2>&1 || true
-partx -u "$DISCO" || true
-udevadm settle
-mkfs.exfat -L LLEVIX "$P_DATOS" >/dev/null
-touch "$D/var/lib/llevix/datos-ampliados"
+if [[ "$modo" == "imagen" ]]; then
+    # Construcción del catálogo en CI: la imagen se publica tal cual y los datos se
+    # amplían en el disco de cada usuario, en su primer arranque. Se libera la zona
+    # de la ISO para que la imagen ocupe poco.
+    fstrim "$T/tope" >/dev/null 2>&1 || true
+else
+    # LLEVIX-DATOS (partición 1, al final) ocupa el resto del disco.
+    sgdisk -e "$DISCO" >/dev/null 2>&1 || true
+    inicio="$(sgdisk -i 1 "$DISCO" | awk '/^First sector:/ {print $3}')"
+    sgdisk -d 1 -n "1:$inicio:0" -t 1:0700 -c 1:LLEVIX-DATOS "$DISCO" >/dev/null 2>&1 || true
+    partx -u "$DISCO" || true
+    udevadm settle
+    mkfs.exfat -L LLEVIX "$P_DATOS" >/dev/null
+    touch "$D/var/lib/llevix/datos-ampliados"
+fi
 
 RENOMBRADO=0   # desde aquí ya no se deshace: el sistema nuevo está completo
 limpiar
 sync
 paso "Listo"
 serie "resultado=ok distro=${nombre_distro:-desconocida}"
+if [[ "$modo" == "imagen" ]]; then
+    systemctl poweroff
+    exit 0
+fi
 echo
 echo "${nombre_distro:-La distro} quedó instalada. La PC se reiniciará en 10 segundos."
 sleep 10

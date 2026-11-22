@@ -90,6 +90,7 @@ source "$CONF"
 : "${NOMBRE_VISIBLE:?falta en $CONF}" "${BASE:?}" "${SUITE:?}" "${PAQUETES_ESCRITORIO:?}" "${GESTOR_SESION:?}"
 # TIPO: "escritorio" (lo normal) o "instalador" (fase 8: instala una ISO del usuario).
 TIPO="${TIPO:-escritorio}"
+[[ "$TIPO" != "desde-iso" ]] || error "$VARIANTE se construye desde su ISO: usa image/desde-iso.sh"
 [[ "$TIPO" == "escritorio" || "$TIPO" == "instalador" ]] || error "TIPO no válido en $CONF: $TIPO"
 # btrfs del instalador: 16 GiB; los 8 GiB finales de la partición guardan la ISO.
 FS_INSTALADOR="16G"
@@ -343,22 +344,7 @@ en_chroot "apt-get -y install ${PAQUETES_IDIOMA:-} $NAVEGADOR"
 # Lo que cualquier usuario necesita desde el primer minuto. Si falta algo, la
 # construcción falla (así no se publica una imagen sin red, sonido o navegador).
 paso "Comprobando que el escritorio está completo"
-# shellcheck disable=SC2016  # las variables se expanden dentro del chroot
-en_chroot '
-falta=""
-instalado() { dpkg-query -W -f="\${Status}" "$1" 2>/dev/null | grep -q "install ok installed"; }
-alguno() { for p in "$@"; do instalado "$p" && return 0; done; return 1; }
-alguno network-manager            || falta="$falta red(network-manager)"
-alguno wpasupplicant              || falta="$falta wifi(wpasupplicant)"
-alguno network-manager-gnome plasma-nm nm-tray gnome-shell || falta="$falta icono-de-red"
-alguno pipewire-pulse pulseaudio  || falta="$falta sonido"
-alguno wireplumber pulseaudio     || falta="$falta sonido(sesion)"
-test -x /usr/lib/firefox/firefox  || falta="$falta navegador(firefox)"
-test -e /etc/alternatives/x-terminal-emulator || falta="$falta terminal"
-alguno nautilus dolphin thunar pcmanfm-qt nemo caja || falta="$falta archivos"
-if [ -n "$falta" ]; then echo "Faltan componentes básicos:$falta" >&2; exit 1; fi
-echo "Escritorio completo: red, wifi, sonido, navegador, terminal y archivos."
-'
+en_chroot "$(cat "$DIR_IMAGE/lib/verificar-escritorio.sh")"
 
 if [[ "$BASE" == "ubuntu" && "$GESTOR_SESION" == "gdm3" ]]; then
     # El panel de Ubuntu apunta al Firefox snap (firefox_firefox.desktop): se apunta al de Mozilla.
