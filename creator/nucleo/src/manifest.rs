@@ -17,6 +17,9 @@ pub struct Parte {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Variante {
     pub id: String,
+    /// "escritorio" (se muestra en el catálogo) o "instalador" (imagen de "Trae tu ISO").
+    #[serde(default = "tipo_escritorio")]
+    pub tipo: String,
     pub nombre: String,
     #[serde(default)]
     pub descripcion: String,
@@ -43,6 +46,10 @@ pub struct Manifest {
     #[serde(default)]
     pub fecha: String,
     pub variantes: Vec<Variante>,
+}
+
+fn tipo_escritorio() -> String {
+    "escritorio".into()
 }
 
 fn es_sha256(s: &str) -> bool {
@@ -77,6 +84,18 @@ impl Manifest {
             }
         }
         Ok(m)
+    }
+}
+
+impl Manifest {
+    /// Variantes que se muestran en el catálogo (sin la imagen del instalador de ISO).
+    pub fn catalogo(&self) -> Vec<Variante> {
+        self.variantes.iter().filter(|v| v.tipo == "escritorio").cloned().collect()
+    }
+
+    /// La imagen "Llevix instalador" para "Trae tu ISO", si la versión la publica.
+    pub fn instalador(&self) -> Option<&Variante> {
+        self.variantes.iter().find(|v| v.tipo == "instalador")
     }
 }
 
@@ -152,6 +171,25 @@ mod pruebas {
     fn rechaza_urls_sin_https() {
         let malo = EJEMPLO.replace("https://example.org/x.img.zst.001", "http://example.org/x.img.zst.001");
         assert!(Manifest::leer(&malo).is_err());
+    }
+
+    #[test]
+    fn separa_el_catalogo_del_instalador() {
+        let con_instalador = EJEMPLO.replacen(
+            "\"variantes\": [{",
+            "\"variantes\": [{\"id\": \"instalador\", \"tipo\": \"instalador\", \"nombre\": \"Llevix: instalador de ISO\",
+              \"tamano_comprimido\": 10, \"tamano_imagen\": 30064771072,
+              \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",
+              \"partes\": [{\"url\": \"https://example.org/i.img.zst\", \"tamano\": 10, \"sha256\": \"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}],
+              \"bmap_url\": \"https://example.org/i.img.bmap\",
+              \"bmap_sha256\": \"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"}, {",
+            1,
+        );
+        let m = Manifest::leer(&con_instalador).unwrap();
+        assert_eq!(m.variantes.len(), 2);
+        assert_eq!(m.catalogo().len(), 1);
+        assert_eq!(m.catalogo()[0].id, "xubuntu-24.04");
+        assert_eq!(m.instalador().unwrap().id, "instalador");
     }
 
     #[test]

@@ -4,7 +4,9 @@
 //! - `obtener_manifest`: lista de variantes de la última versión publicada.
 //! - `preparar_cuenta`: valida la cuenta y calcula el hash de la contraseña.
 //! - `listar_discos`: discos USB aptos (nunca internos ni del sistema).
-//! - `crear_usb`: descarga, escribe, verifica y deja llevix-config.json en la ESP.
+//! - `analizar_iso`: revisa si una ISO elegida por el usuario es compatible ("Trae tu ISO").
+//! - `crear_usb`: descarga, escribe, verifica, deja la ISO del usuario (si eligió una) y
+//!   llevix-config.json en la ESP.
 //! - `cancelar`.
 //! El progreso se informa con los eventos `llevix://progreso` y `llevix://fin`.
 
@@ -58,6 +60,20 @@ async fn obtener_manifest() -> Result<Manifest, String> {
 }
 
 #[tauri::command]
+async fn analizar_iso(ruta: String) -> Result<llevix_nucleo::iso::InfoIso, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let nombre = std::path::Path::new(&ruta)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let mut f = std::fs::File::open(&ruta).map_err(|e| format!("No se pudo abrir la ISO: {e}"))?;
+        llevix_nucleo::iso::analizar(&mut f, &nombre).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 fn preparar_cuenta(datos: DatosCuenta, estado: State<'_, Estado>) -> Result<ResumenCuenta, String> {
     // Aquí se calcula el hash: la contraseña en texto no sale de esta función.
     let config = ConfigLlevix::desde_datos(datos).map_err(|e| e.to_string())?;
@@ -90,7 +106,13 @@ fn cancelar(estado: State<'_, Estado>) {
 }
 
 #[tauri::command]
-fn crear_usb(app: AppHandle, variante: Variante, disco: u32, estado: State<'_, Estado>) -> Result<(), String> {
+fn crear_usb(
+    app: AppHandle,
+    variante: Variante,
+    disco: u32,
+    iso: Option<String>,
+    estado: State<'_, Estado>,
+) -> Result<(), String> {
     let config = estado
         .config
         .lock()
@@ -110,7 +132,8 @@ fn crear_usb(app: AppHandle, variante: Variante, disco: u32, estado: State<'_, E
         .join("descargas");
 
     std::thread::spawn(move || {
-        let resultado = proceso(&app, &variante, disco, &config, &cache, &cancelar);
+        let iso = iso.map(std::path::PathBuf::from);
+        let resultado = proceso(&app, &variante, disco, iso.as_deref(), &config, &cache, &cancelar);
         ocupado.store(false, Ordering::SeqCst);
         let fin = match resultado {
             Ok(()) => Fin { ok: true, mensaje: "Listo".into() },
@@ -130,11 +153,21 @@ fn proceso(
     app: &AppHandle,
     variante: &Variante,
     disco: u32,
+    iso: Option<&std::path::Path>,
     config: &ConfigLlevix,
     cache: &std::path::Path,
     cancelar: &AtomicBool,
 ) -> Result<(), Error> {
     use llevix_nucleo::{bmap::Bmap, descarga};
+
+    // "Trae tu ISO": se revisa la ISO antes de descargar o borrar nada.
+    if let Some(ruta) = iso {
+        if variante.tipo != "instalador" {
+            return Err(Error::Config("para usar una ISO propia se necesita la imagen del instalador".into()));
+        }
+        let nombre = ruta.file_name().unwrap_or_default().to_string_lossy().to_string();
+        llevix_nucleo::iso::analizar(&mut std::fs::File::open(ruta)?, &nombre)?;
+    }
 
     // 1. Descargar (o continuar) y verificar la imagen.
     let rutas = descarga::descargar_imagen(cache, &variante.id, &variante.partes, &variante.sha256, cancelar, &mut |p| {
@@ -153,7 +186,7 @@ fn proceso(
         return Err(Error::Integridad("el tamaño de la imagen no coincide con el mapa".into()));
     }
 
-    escribir_en_disco(app, disco, &bmap, &rutas, config, cancelar)
+    escribir_en_disco(app, disco, &bmap, &rutas, iso, config, cancelar)
 }
 
 #[cfg(windows)]
@@ -162,6 +195,7 @@ fn escribir_en_disco(
     disco: u32,
     bmap: &llevix_nucleo::bmap::Bmap,
     rutas: &[std::path::PathBuf],
+    iso: Option<&std::path::Path>,
     config: &ConfigLlevix,
     cancelar: &AtomicBool,
 ) -> Result<(), Error> {
@@ -181,6 +215,14 @@ fn escribir_en_disco(
         avisar(app, etapa, p.hechos, p.total)
     })?;
 
+    if let Some(ruta) = iso {
+        let nombre = ruta.file_name().unwrap_or_default().to_string_lossy().to_string();
+        let mut archivo = std::fs::File::open(ruta)?;
+        llevix_nucleo::iso::escribir_iso(&mut archivo, &nombre, &mut destino, cancelar, &mut |h, t| {
+            avisar(app, "iso", h, t)
+        })?;
+    }
+
     avisar(app, "config", 0, 1);
     let json = config.a_json();
     esp::escribir_config(&mut destino, &json)?;
@@ -198,6 +240,7 @@ fn escribir_en_disco(
     _disco: u32,
     _bmap: &llevix_nucleo::bmap::Bmap,
     _rutas: &[std::path::PathBuf],
+    _iso: Option<&std::path::Path>,
     _config: &ConfigLlevix,
     _cancelar: &AtomicBool,
 ) -> Result<(), Error> {
@@ -207,9 +250,11 @@ fn escribir_en_disco(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(Estado::default())
         .invoke_handler(tauri::generate_handler![
             obtener_manifest,
+            analizar_iso,
             preparar_cuenta,
             listar_discos,
             crear_usb,

@@ -20,6 +20,7 @@ pub mod error;
 pub mod escritura;
 pub mod esp;
 pub mod gpt;
+pub mod iso;
 pub mod manifest;
 
 #[cfg(windows)]

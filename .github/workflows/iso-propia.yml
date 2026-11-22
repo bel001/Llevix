@@ -8,6 +8,7 @@ on:
       - 'image/**'
       - 'tests/iso-propia-test.sh'
       - 'tests/lib/**'
+      - 'creator/nucleo/**'
       - '.github/workflows/iso-propia.yml'
   workflow_dispatch:
   workflow_call:
@@ -88,6 +89,9 @@ jobs:
       DIR: /mnt/iso
     steps:
       - uses: actions/checkout@v5
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: creator
       - name: Herramientas
         run: |
           sudo apt-get update
@@ -112,12 +116,12 @@ jobs:
           curl -fsSL -o sumas.txt "${{ matrix.sumas }}"
           curl -fsSL --retry 3 -o "$archivo" "${{ matrix.iso }}"
           grep "[ *]$archivo\$" sumas.txt | sed 's/ \*/  /' | sha256sum -c -
-          zstd -d --rm llevix-instalador.img.zst
           ls -lh
       - name: Instalar la ISO y probar
         env:
           LLEVIX_TEST_DIR: ${{ env.DIR }}/pruebas
-        run: ./tests/iso-propia-test.sh "$DIR/llevix-instalador.img" "$DIR/$(basename "${{ matrix.iso }}")"
+        run: |
+          ./tests/iso-propia-test.sh "$DIR/llevix-instalador.img.zst" "$DIR/llevix-instalador.img.bmap"             "$DIR/$(basename "${{ matrix.iso }}")"
       - uses: actions/upload-artifact@v5
         if: always()
         with:

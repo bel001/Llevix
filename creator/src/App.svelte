@@ -2,6 +2,7 @@
   // Asistente del creador de Llevix: 1) distro, 2) cuenta, 3) destino; luego progreso y final.
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
+  import { open } from "@tauri-apps/plugin-dialog";
   import { onMount } from "svelte";
   import {
     IDIOMAS, ZONAS, TECLADOS, ZONA_POR_IDIOMA, TECLADO_POR_IDIOMA, TECLAS_ARRANQUE,
@@ -15,6 +16,14 @@
   let errorManifest = $state("");
   let cargandoManifest = $state(true);
   let variante = $state(null);
+  // "Trae tu ISO": ruta e información de la ISO elegida por el usuario.
+  let isoRuta = $state(null);
+  let isoInfo = $state(null);
+  let errorIso = $state("");
+  let revisandoIso = $state(false);
+  const catalogo = $derived((manifest?.variantes ?? []).filter((v) => (v.tipo ?? "escritorio") === "escritorio"));
+  const instalador = $derived((manifest?.variantes ?? []).find((v) => v.tipo === "instalador"));
+  const nombreElegido = $derived(isoInfo ? isoInfo.nombre : variante?.nombre);
 
   // Paso 2
   let nombreCompleto = $state("");
@@ -48,6 +57,7 @@
     preparando: "Preparando el disco",
     escritura: "Escribiendo en el disco",
     verificacion: "Comprobando lo escrito",
+    iso: "Guardando tu ISO en el disco",
     config: "Guardando tu cuenta en el disco",
   };
 
@@ -82,6 +92,32 @@
       errorManifest = String(e);
     } finally {
       cargandoManifest = false;
+    }
+  }
+
+  function elegirVariante(v) {
+    variante = v;
+    isoRuta = null;
+    isoInfo = null;
+    errorIso = "";
+  }
+
+  async function elegirIso() {
+    errorIso = "";
+    const ruta = await open({ multiple: false, directory: false, filters: [{ name: "Imagen ISO", extensions: ["iso"] }] });
+    if (!ruta) return;
+    revisandoIso = true;
+    try {
+      isoInfo = await invoke("analizar_iso", { ruta });
+      isoRuta = ruta;
+      variante = instalador;
+    } catch (e) {
+      isoInfo = null;
+      isoRuta = null;
+      variante = null;
+      errorIso = String(e);
+    } finally {
+      revisandoIso = false;
     }
   }
 
@@ -137,7 +173,7 @@
     total = 0;
     paso = 4;
     try {
-      await invoke("crear_usb", { variante, disco: discoElegido.numero });
+      await invoke("crear_usb", { variante, disco: discoElegido.numero, iso: isoRuta });
     } catch (e) {
       errorFinal = String(e);
     }
@@ -176,17 +212,25 @@
       {:else}
         <p class="nota">Versión {manifest.version}. Cada opción trae su escritorio tal como lo hace la distribución.</p>
         <div class="tarjetas">
-          {#each manifest.variantes as v (v.id)}
-            <button class="tarjeta" class:elegida={variante?.id === v.id} onclick={() => (variante = v)}>
+          {#each catalogo as v (v.id)}
+            <button class="tarjeta" class:elegida={!isoInfo && variante?.id === v.id} onclick={() => elegirVariante(v)}>
               <strong>{v.nombre}</strong>
               {#if v.ligera}<span class="etiqueta">Ligera</span>{/if}
               <span>{v.descripcion}</span>
               <small>Descarga: {formatoBytes(v.tamano_comprimido)} · Disco mínimo: {formatoBytes(v.tamano_imagen)}</small>
             </button>
           {/each}
+          {#if instalador}
+            <button class="tarjeta" class:elegida={!!isoInfo} onclick={elegirIso} disabled={revisandoIso}>
+              <strong>Usar mi propia ISO</strong>
+              <span>{revisandoIso ? "Revisando la ISO…" : isoInfo ? isoInfo.nombre : "Elige una ISO que ya descargaste (Ubuntu, Linux Mint, Zorin OS, elementary OS…)."}</span>
+              <small>Se instala en el disco en el primer arranque. Máximo 8 GB.</small>
+            </button>
+          {/if}
         </div>
+        {#if errorIso}<p class="error">{errorIso}</p>{/if}
         <div class="acciones">
-          <button class="principal" disabled={!variante} onclick={() => (paso = 2)}>Siguiente</button>
+          <button class="principal" disabled={!variante || revisandoIso} onclick={() => (paso = 2)}>Siguiente</button>
         </div>
       {/if}
     </section>
@@ -293,7 +337,7 @@
         <div class="caja">
           <h3>¿Seguro?</h3>
           <p>Se borrará todo el contenido de <strong>{nombreDisco(discoElegido)}</strong> y se instalará
-            {variante.nombre}. Esto no se puede deshacer.</p>
+            {nombreElegido}. Esto no se puede deshacer.</p>
           <div class="acciones">
             <button onclick={() => (confirmando = false)}>No, volver</button>
             <button class="principal peligro" onclick={empezar}>Sí, borrar y crear</button>
@@ -325,6 +369,12 @@
     <section>
       <h2>¡Listo!</h2>
       <p>Tu Llevix está en <strong>{nombreDisco(discoElegido)}</strong>. Ya puedes desconectarlo.</p>
+      {#if isoInfo}
+        <div class="aviso">
+          La primera vez que arranques desde este disco, Llevix instalará <strong>{isoInfo.nombre}</strong>.
+          Tarda entre 5 y 15 minutos y la PC se reinicia sola al terminar. No la apagues mientras tanto.
+        </div>
+      {/if}
       <h3>Cómo arrancar desde el USB</h3>
       <ol>
         <li>Conecta el disco y enciende (o reinicia) la PC.</li>

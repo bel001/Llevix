@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # iso-propia-test.sh — Prueba "Trae tu ISO" de punta a punta con una ISO real.
 #
-# Uso: ./tests/iso-propia-test.sh <llevix-instalador.img> <distro.iso>
+# Uso: ./tests/iso-propia-test.sh <llevix-instalador.img.zst> <llevix-instalador.img.bmap> <distro.iso>
 #
-# 1. Prepara un disco simulado de 32 GiB como lo haría el creador: imagen del instalador,
-#    encabezado + ISO en la zona reservada de la partición 4 y llevix-config.json en la ESP.
+# 1. El núcleo del creador (ejemplo escribir_iso_en_archivo) prepara un disco simulado de
+#    32 GiB igual que con un USB real: imagen del instalador, ISO en la zona reservada de
+#    la partición 4 y llevix-config.json en la ESP.
 # 2. Arranca con UEFI + Secure Boot: el instalador copia la distro y reinicia.
 # 3. Comprueba el sistema instalado por el informe del puerto serie: escritorio, cuenta,
 #    red, sonido, navegador y Datos. Luego vuelve a arrancar en modo BIOS.
@@ -19,17 +20,13 @@ TIMEOUT_INSTALAR="${LLEVIX_TEST_TIMEOUT_INSTALAR:-2700}"
 TIMEOUT="${LLEVIX_TEST_TIMEOUT:-1200}"
 USUARIO="iso"
 
-INICIO_RESERVA=$((16 * 1024 * 1024 * 1024))
-ENCABEZADO=$((1024 * 1024))
-MAX_ISO=$((8 * 1024 * 1024 * 1024 - ENCABEZADO))
-
 # shellcheck source=tests/lib/qemu.sh
 source "$DIR_REPO/tests/lib/qemu.sh"
 
-[[ $# -eq 2 ]] || { echo "uso: $0 <instalador.img> <distro.iso>" >&2; exit 2; }
-IMG="$(realpath "$1")"; ISO="$(realpath "$2")"
-[[ -f "$IMG" && -f "$ISO" ]] || { echo "no existe la imagen o la ISO" >&2; exit 2; }
-for h in mcopy partx openssl sha256sum; do
+[[ $# -eq 3 ]] || { echo "uso: $0 <instalador.img.zst> <instalador.img.bmap> <distro.iso>" >&2; exit 2; }
+ZST="$(realpath "$1")"; BMAP="$(realpath "$2")"; ISO="$(realpath "$3")"
+[[ -f "$ZST" && -f "$BMAP" && -f "$ISO" ]] || { echo "no existe la imagen, el bmap o la ISO" >&2; exit 2; }
+for h in cargo openssl; do
     command -v "$h" >/dev/null || { echo "falta $h" >&2; exit 2; }
 done
 qemu_requisitos
@@ -46,25 +43,9 @@ info()  { grep -a -o "LLEVIX-INFO $1=[^[:cntrl:]]*" "$QEMU_SERIE" | tail -n1 | c
 
 # ---------- 1. Disco simulado, como lo deja el creador ----------
 
-tam_iso="$(stat -c %s "$ISO")"
-(( tam_iso <= MAX_ISO )) || { echo "la ISO es demasiado grande para la zona reservada" >&2; exit 2; }
-echo "Preparando el disco con $(basename "$ISO") ($((tam_iso / 1024 / 1024)) MiB)…"
-
-"$DIR_REPO/tools/make-config.sh" --usuario "$USUARIO" --nombre-completo "Prueba ISO" \
-    --contrasena "clave-iso" --idioma es_ES.UTF-8 --zona Europe/Madrid --teclado es \
-    --hostname llevix-iso > "$TRABAJO/config.json"
-preparar_disco "$IMG" "$TRABAJO/disco.img" 32G "$TRABAJO/config.json"
-
-inicio_p4=$(( $(partx -g -o START -n 4 "$IMG" | tr -d ' ') * 512 ))
-{
-    printf 'LLEVIX-ISO 1\ntamano=%s\nsha256=%s\nnombre=%s\n' \
-        "$tam_iso" "$(sha256sum "$ISO" | cut -d' ' -f1)" "$(basename "$ISO")"
-} > "$TRABAJO/encabezado"
-# Se escribe en un ARCHIVO (el disco simulado), nunca en un dispositivo.
-dd if="$TRABAJO/encabezado" of="$TRABAJO/disco.img" bs=1M conv=notrunc,sparse \
-    oflag=seek_bytes seek=$((inicio_p4 + INICIO_RESERVA)) status=none
-dd if="$ISO" of="$TRABAJO/disco.img" bs=4M conv=notrunc,sparse \
-    oflag=seek_bytes seek=$((inicio_p4 + INICIO_RESERVA + ENCABEZADO)) status=none
+"$DIR_REPO/tools/make-config.sh" --usuario "$USUARIO" --nombre-completo "Prueba ISO"     --contrasena "clave-iso" --idioma es_ES.UTF-8 --zona Europe/Madrid --teclado es     --hostname llevix-iso > "$TRABAJO/config.json"
+echo "El creador prepara el disco con $(basename "$ISO")…"
+(cd "$DIR_REPO/creator" && cargo run --quiet --release -p llevix-nucleo --example escribir_iso_en_archivo --     "$ZST" "$BMAP" "$ISO" "$TRABAJO/disco.img" 32 "$TRABAJO/config.json")
 
 # ---------- 2. Instalación (UEFI + Secure Boot) ----------
 
