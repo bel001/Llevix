@@ -5,6 +5,10 @@ name: manifiestos
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - 'tools/manifiesto-iso.sh'
+      - '.github/workflows/manifiestos.yml'
 
 permissions:
   contents: read
