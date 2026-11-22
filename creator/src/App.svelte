@@ -133,6 +133,32 @@
     } finally {
       cargandoManifest = false;
     }
+    if (esSimulacion) await prepararCaptura();
+  }
+
+  // SOLO en la vista previa del navegador: ?captura=2..5 abre ese paso con datos de
+  // ejemplo, para sacar las capturas del README sin hacer clic.
+  async function prepararCaptura() {
+    const n = Number(new URLSearchParams(location.search).get("captura"));
+    if (!(n >= 1)) return;
+    variante = catalogo.find((v) => v.id === "kubuntu-24.04") ?? catalogo[0];
+    if (n === 1) return;
+    nombreCompleto = "Ana Pérez";
+    usuario = "ana";
+    contrasena = contrasena2 = "Clave-Segura-2026";
+    resumenCuenta = { usuario: "ana" };
+    paso = 2;
+    if (n === 2) return;
+    contrasena = contrasena2 = "";
+    discos = await invoke("listar_discos", { tamanoMinimo: variante.tamano_imagen });
+    discoElegido = discos.aptos[0];
+    entiendoBorrado = true;
+    paso = 3;
+    if (n === 3) return;
+    etapa = "escritura";
+    hechos = 2.87e9;
+    total = 4.4e9;
+    paso = n === 4 ? 4 : 5;
   }
 
   function elegirVariante(v) {
@@ -248,7 +274,7 @@
         <h1>Llevix</h1>
         <p>Tu Linux portátil en una memoria USB o un disco externo</p>
       </div>
-      {#if esSimulacion}<span class="simulacion">Vista previa (simulación)</span>{/if}
+      {#if esSimulacion && !location.search.includes("captura")}<span class="simulacion">Vista previa (simulación)</span>{/if}
     </div>
 
     {#if paso <= 3}
