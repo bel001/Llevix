@@ -17,7 +17,7 @@ on:
   # La publicación (release.yml) lo reutiliza solo para el instalador, sin la prueba e2e.
   workflow_call:
     inputs:
-      e2e:
+      solo_instalador:
         type: boolean
         default: false
 
@@ -91,7 +91,7 @@ jobs:
   # De punta a punta: el núcleo del creador descarga la última versión publicada, la
   # escribe en un disco SIMULADO (archivo) con una cuenta, y QEMU arranca ese disco.
   e2e:
-    if: ${{ inputs.e2e != false }}
+    if: ${{ !inputs.solo_instalador }}
     needs: nucleo-linux
     runs-on: ubuntu-24.04
     timeout-minutes: 60

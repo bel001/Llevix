@@ -20,6 +20,8 @@ jobs:
 
   creador:
     uses: ./.github/workflows/creador.yml
+    with:
+      solo_instalador: true
 
   publicar:
     needs: [imagenes, creador]
