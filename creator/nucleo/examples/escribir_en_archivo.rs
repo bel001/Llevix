@@ -9,7 +9,7 @@
 //! sumas, crea el archivo destino del tamaño indicado (disperso), escribe solo los
 //! bloques del .bmap, verifica lo escrito y deja llevix-config.json en la ESP.
 
-use llevix_nucleo::{bmap::Bmap, descarga, escritura, esp, manifest};
+use llevix_nucleo::{bmap::Bmap, crear, descarga, manifest};
 use std::fs::OpenOptions;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
@@ -62,20 +62,16 @@ fn ejecutar() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut disco = OpenOptions::new().read(true).write(true).create(true).truncate(true).open(&destino)?;
     disco.set_len(tamano)?;
-    let mut ultimo = (escritura::Fase::Escribiendo, 0u64);
-    escritura::escribir_y_verificar(descarga::abrir_imagen(&rutas)?, &bmap, &mut disco, &cancelar, &mut |p| {
-        let pct = p.hechos * 100 / p.total.max(1);
-        if p.fase != ultimo.0 || pct >= ultimo.1 + 10 {
-            ultimo = (p.fase, pct);
-            println!("{:?} {pct}%", p.fase);
+    // El mismo proceso que el creador: la tabla de particiones se escribe al final.
+    let json = std::fs::read(config)?;
+    let mut ultimo = (crear::Paso::Escritura, 0u64);
+    crear::escribir_todo(descarga::abrir_imagen(&rutas)?, &bmap, &mut disco, None, &json, &cancelar, &mut |paso, h, t| {
+        let pct = h * 100 / t.max(1);
+        if paso != ultimo.0 || pct >= ultimo.1 + 10 {
+            ultimo = (paso, pct);
+            println!("{paso:?} {pct}%");
         }
     })?;
-
-    let json = std::fs::read(config)?;
-    esp::escribir_config(&mut disco, &json)?;
-    if esp::leer_config(&mut disco)? != json {
-        return Err("llevix-config.json no se guardó bien".into());
-    }
     println!("Listo: {} ({} GiB) con llevix-config.json en la ESP", destino.display(), gib);
     Ok(())
 }

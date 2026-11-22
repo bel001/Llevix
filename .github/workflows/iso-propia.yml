@@ -113,8 +113,8 @@ jobs:
         run: |
           cd "$DIR"
           archivo="$(basename "${{ matrix.iso }}")"
-          curl -fsSL -o sumas.txt "${{ matrix.sumas }}"
-          curl -fsSL --retry 3 -o "$archivo" "${{ matrix.iso }}"
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 20 -o sumas.txt "${{ matrix.sumas }}"
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 20 -o "$archivo" "${{ matrix.iso }}"
           grep "[ *]$archivo\$" sumas.txt | sed 's/ \*/  /' | sha256sum -c -
           ls -lh
       - name: Instalar la ISO y probar

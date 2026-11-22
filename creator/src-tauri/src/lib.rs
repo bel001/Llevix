@@ -199,38 +199,38 @@ fn escribir_en_disco(
     config: &ConfigLlevix,
     cancelar: &AtomicBool,
 ) -> Result<(), Error> {
-    use llevix_nucleo::{descarga, esp, escritura};
+    use llevix_nucleo::crear::{self, IsoPropia, Paso};
+    use llevix_nucleo::descarga;
 
     avisar(app, "preparando", 0, 0);
     // Vuelve a comprobar que el disco es USB, no es del sistema y alcanza el tamaño.
+    // Bloquea y desmonta sus volúmenes y borra la tabla de particiones vieja.
     let mut destino = llevix_nucleo::windows::abrir_para_escribir(disco, bmap.tamano_imagen)?;
     destino.borrar_tablas()?;
 
+    let nombre_iso = iso.map(|r| r.file_name().unwrap_or_default().to_string_lossy().to_string());
+    let mut archivo_iso = match iso {
+        Some(r) => Some(std::fs::File::open(r)?),
+        None => None,
+    };
+    let iso_propia = match (archivo_iso.as_mut(), nombre_iso.as_deref()) {
+        (Some(archivo), Some(nombre)) => Some(IsoPropia { archivo, nombre }),
+        _ => None,
+    };
+
+    // Imagen (verificada), ISO propia y llevix-config.json; la tabla de particiones va
+    // al final (ver llevix_nucleo::crear) para que Windows no monte nada a mitad de camino.
     let imagen = descarga::abrir_imagen(rutas)?;
-    escritura::escribir_y_verificar(imagen, bmap, &mut destino, cancelar, &mut |p| {
-        let etapa = match p.fase {
-            escritura::Fase::Escribiendo => "escritura",
-            escritura::Fase::Verificando => "verificacion",
+    crear::escribir_todo(imagen, bmap, &mut destino, iso_propia, &config.a_json(), cancelar, &mut |paso, h, t| {
+        let etapa = match paso {
+            Paso::Escritura => "escritura",
+            Paso::Verificacion => "verificacion",
+            Paso::Iso => "iso",
+            Paso::Config => "config",
         };
-        avisar(app, etapa, p.hechos, p.total)
+        avisar(app, etapa, h, t)
     })?;
-
-    if let Some(ruta) = iso {
-        let nombre = ruta.file_name().unwrap_or_default().to_string_lossy().to_string();
-        let mut archivo = std::fs::File::open(ruta)?;
-        llevix_nucleo::iso::escribir_iso(&mut archivo, &nombre, &mut destino, cancelar, &mut |h, t| {
-            avisar(app, "iso", h, t)
-        })?;
-    }
-
-    avisar(app, "config", 0, 1);
-    let json = config.a_json();
-    esp::escribir_config(&mut destino, &json)?;
-    if esp::leer_config(&mut destino)? != json {
-        return Err(Error::Verificacion("llevix-config.json no se guardó bien".into()));
-    }
     destino.actualizar_windows();
-    avisar(app, "config", 1, 1);
     Ok(())
 }
 

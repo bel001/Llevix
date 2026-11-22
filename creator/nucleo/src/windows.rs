@@ -46,6 +46,9 @@ extern "system" {
     ) -> i32;
     fn GetDiskFreeSpaceExW(dir: *const u16, libre_usuario: *mut u64, total: *mut u64, libre: *mut u64) -> i32;
     fn GetSystemWindowsDirectoryW(buffer: *mut u16, tam: u32) -> u32;
+    fn FindFirstVolumeW(nombre: *mut u16, tam: u32) -> *mut c_void;
+    fn FindNextVolumeW(busqueda: *mut c_void, nombre: *mut u16, tam: u32) -> i32;
+    fn FindVolumeClose(busqueda: *mut c_void) -> i32;
 }
 
 const IOCTL_STORAGE_QUERY_PROPERTY: u32 = 0x002D_1400;
@@ -140,10 +143,39 @@ fn abrir_consulta(ruta: &str) -> io::Result<File> {
 
 /// Números de disco que ocupa un volumen (por ejemplo "C:").
 fn discos_de_volumen(letra: char) -> Vec<u32> {
-    let Ok(v) = abrir_consulta(&format!(r"\\.\{letra}:")) else { return vec![] };
+    discos_de_ruta(&format!(r"\\.\{letra}:"))
+}
+
+/// Números de disco que ocupa el volumen abierto con `ruta` (\\.\E: o \\?\Volume{…}).
+fn discos_de_ruta(ruta: &str) -> Vec<u32> {
+    let Ok(v) = abrir_consulta(ruta) else { return vec![] };
     let Ok(b) = ioctl(&v, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, &[], 8 + 24 * 32) else { return vec![] };
     let n = u32_en(&b, 0) as usize;
     (0..n.min(32)).map(|i| u32_en(&b, 8 + i * 24)).collect()
+}
+
+/// Todos los volúmenes que Windows conoce en el disco `numero`, TENGAN O NO LETRA
+/// (por ejemplo la partición EFI de un Llevix anterior). Rutas \\?\Volume{…} sin la
+/// barra final, listas para abrir.
+fn volumenes_del_disco(numero: u32) -> Vec<String> {
+    let mut rutas = Vec::new();
+    let mut nombre = [0u16; 261];
+    let busqueda = unsafe { FindFirstVolumeW(nombre.as_mut_ptr(), nombre.len() as u32) };
+    if busqueda as isize == -1 {
+        return rutas;
+    }
+    loop {
+        let ruta = de_ancho(&nombre);
+        let ruta = ruta.trim_end_matches('\\').to_string();
+        if discos_de_ruta(&ruta).contains(&numero) {
+            rutas.push(ruta);
+        }
+        if unsafe { FindNextVolumeW(busqueda, nombre.as_mut_ptr(), nombre.len() as u32) } == 0 {
+            break;
+        }
+    }
+    unsafe { FindVolumeClose(busqueda) };
+    rutas
 }
 
 struct InfoVolumen {
@@ -287,7 +319,23 @@ impl Read for DiscoAbierto {
 }
 impl Write for DiscoAbierto {
     fn write(&mut self, b: &[u8]) -> io::Result<usize> {
-        self.archivo.write(b)
+        self.archivo.write(b).map_err(|e| {
+            if e.raw_os_error() == Some(5) {
+                // Acceso denegado: Windows bloquea escribir dentro de una partición que
+                // tiene montada. Se explica dónde ocurrió para poder diagnosticarlo.
+                let mib = self.archivo.stream_position().unwrap_or(0) / MIB;
+                io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    format!(
+                        "Windows no permitió escribir en el disco (acceso denegado, en el MiB {mib}). \
+                         Desconecta el disco, vuelve a conectarlo y reintenta. Si sigue pasando, \
+                         revisa que el antivirus o el «Acceso controlado a carpetas» no bloqueen al creador"
+                    ),
+                )
+            } else {
+                e
+            }
+        })
     }
     fn flush(&mut self) -> io::Result<()> {
         self.archivo.flush()?;
@@ -302,8 +350,15 @@ impl Seek for DiscoAbierto {
 
 impl DiscoAbierto {
     /// Borra el primer y el último MiB del disco (tablas de particiones viejas, incluida
-    /// la copia de la GPT que queda al final de un disco más grande que la imagen).
+    /// la copia de la GPT que queda al final de un disco más grande que la imagen) y
+    /// avisa a Windows: así el disco queda sin particiones mientras se escribe.
     pub fn borrar_tablas(&mut self) -> Resultado<()> {
+        self.borrar_tablas_sin_avisar()?;
+        self.actualizar_windows();
+        Ok(())
+    }
+
+    fn borrar_tablas_sin_avisar(&mut self) -> Resultado<()> {
         let ceros = vec![0u8; MIB as usize];
         self.archivo.seek(SeekFrom::Start(0))?;
         self.archivo.write_all(&ceros)?;
@@ -326,17 +381,34 @@ impl DiscoAbierto {
 pub fn abrir_para_escribir(numero: u32, tamano_minimo: u64) -> Resultado<DiscoAbierto> {
     let discos = enumerar_discos()?;
     let elegido = disco::confirmar_destino(numero, &discos, tamano_minimo).map_err(Error::DiscoNoPermitido)?;
+    abrir_elegido(&elegido, false)
+}
 
-    // Bloquear y desmontar cada volumen del disco.
+/// Bloquea y desmonta los volúmenes del disco ya comprobado y lo abre para escribir.
+/// `solo_con_letra` reproduce el comportamiento anterior (solo para la prueba con VHD).
+fn abrir_elegido(elegido: &Disco, solo_con_letra: bool) -> Resultado<DiscoAbierto> {
+    let numero = elegido.numero;
+    // Todos los volúmenes del disco, también los que no tienen letra (una partición EFI
+    // vieja puede estar montada sin letra y Windows bloquearía escribir sobre ella).
+    let mut rutas = if solo_con_letra { vec![] } else { volumenes_del_disco(numero) };
+    if rutas.is_empty() {
+        rutas = elegido.volumenes.iter().map(|v| format!(r"\\.\{}", v.letra)).collect();
+    }
+
     let mut volumenes = Vec::new();
-    for v in &elegido.volumenes {
-        let ruta = format!(r"\\.\{}", v.letra);
+    for ruta in &rutas {
+        let nombre = elegido
+            .volumenes
+            .iter()
+            .find(|v| ruta.ends_with(&v.letra))
+            .map(|v| v.letra.clone())
+            .unwrap_or_else(|| "una partición del disco".to_string());
         let f = OpenOptions::new()
             .read(true)
             .write(true)
             .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
-            .open(&ruta)
-            .map_err(|e| Error::DiscoNoPermitido(format!("no se pudo abrir {}: {e}", v.letra)))?;
+            .open(ruta)
+            .map_err(|e| Error::DiscoNoPermitido(format!("no se pudo abrir {nombre}: {e}")))?;
         let mut bloqueado = false;
         for _ in 0..20 {
             if ioctl(&f, FSCTL_LOCK_VOLUME, &[], 0).is_ok() {
@@ -347,12 +419,11 @@ pub fn abrir_para_escribir(numero: u32, tamano_minimo: u64) -> Resultado<DiscoAb
         }
         if !bloqueado {
             return Err(Error::DiscoNoPermitido(format!(
-                "{} está en uso: cierra los programas y ventanas que lo estén usando",
-                v.letra
+                "{nombre} está en uso: cierra el Explorador de archivos y los programas que lo estén usando"
             )));
         }
         ioctl(&f, FSCTL_DISMOUNT_VOLUME, &[], 0)
-            .map_err(|e| Error::DiscoNoPermitido(format!("no se pudo desmontar {}: {e}", v.letra)))?;
+            .map_err(|e| Error::DiscoNoPermitido(format!("no se pudo desmontar {nombre}: {e}")))?;
         volumenes.push(f);
     }
 
@@ -386,5 +457,155 @@ mod pruebas {
         for d in discos.iter().filter(|d| d.es_sistema) {
             assert!(abrir_para_escribir(d.numero, 1).is_err(), "permitió abrir el disco del sistema");
         }
+    }
+}
+
+/// Prueba con un disco VIRTUAL (archivo .vhdx conectado en la máquina de pruebas de
+/// GitHub, Windows). Recorre el mismo camino que el creador con un disco físico de
+/// verdad: \\.\PhysicalDriveN, bloqueo de volúmenes, escritura y verificación.
+///
+/// Solo existe con la característica `prueba-vhd` (nunca en el creador) y solo acepta
+/// un disco virtual de Microsoft ("Msft Virtual Disk") que no sea del sistema.
+#[cfg(all(test, feature = "prueba-vhd"))]
+mod prueba_vhd {
+    use super::*;
+    use crate::bmap::{pruebas::crear_bmap, Bmap};
+    use crate::esp::VistaParticion;
+    use crate::{crear, esp, escritura, gpt};
+    use std::io::Cursor;
+    use std::sync::atomic::AtomicBool;
+
+    const DATOS: [u8; 16] = [0xA2, 0xA0, 0xD0, 0xEB, 0xE5, 0xB9, 0x33, 0x44, 0x87, 0xC0, 0x68, 0xB6, 0xB7, 0x26, 0x99, 0xC7];
+
+    fn crc32(datos: &[u8]) -> u32 {
+        let mut crc = 0xFFFF_FFFFu32;
+        for &b in datos {
+            crc ^= b as u32;
+            for _ in 0..8 {
+                crc = if crc & 1 != 0 { (crc >> 1) ^ 0xEDB8_8320 } else { crc >> 1 };
+            }
+        }
+        !crc
+    }
+
+    /// GPT completa y válida (MBR protector, cabeceras con CRC, copia al final), como la
+    /// de las imágenes de Llevix, para que Windows la reconozca.
+    fn escribir_gpt_valida(img: &mut [u8], particiones: &[([u8; 16], &str, u64, u64)]) {
+        let sectores = (img.len() / 512) as u64;
+        let ultimo = sectores - 1;
+        // MBR protector.
+        img[446 + 4] = 0xEE;
+        img[446 + 8..446 + 12].copy_from_slice(&1u32.to_le_bytes());
+        img[446 + 12..446 + 16].copy_from_slice(&((sectores - 1).min(0xFFFF_FFFF) as u32).to_le_bytes());
+        img[510] = 0x55;
+        img[511] = 0xAA;
+        // Entradas.
+        let mut entradas = vec![0u8; 128 * 128];
+        for (i, (tipo, nombre, a, b)) in particiones.iter().enumerate() {
+            let e = &mut entradas[i * 128..(i + 1) * 128];
+            e[0..16].copy_from_slice(tipo);
+            e[16..32].copy_from_slice(&[0x4C, 0x4C, 0x45, 0x56, 0x49, 0x58, 0, 0, 0, 0, 0, 0, 0, 0, 0, i as u8 + 1]);
+            e[32..40].copy_from_slice(&a.to_le_bytes());
+            e[40..48].copy_from_slice(&b.to_le_bytes());
+            for (j, c) in nombre.encode_utf16().enumerate() {
+                e[56 + j * 2..58 + j * 2].copy_from_slice(&c.to_le_bytes());
+            }
+        }
+        let crc_entradas = crc32(&entradas);
+        let cabecera = |actual: u64, otra: u64, lba_entradas: u64| {
+            let mut c = [0u8; 512];
+            c[0..8].copy_from_slice(b"EFI PART");
+            c[8..12].copy_from_slice(&0x0001_0000u32.to_le_bytes());
+            c[12..16].copy_from_slice(&92u32.to_le_bytes());
+            c[24..32].copy_from_slice(&actual.to_le_bytes());
+            c[32..40].copy_from_slice(&otra.to_le_bytes());
+            c[40..48].copy_from_slice(&34u64.to_le_bytes());
+            c[48..56].copy_from_slice(&(ultimo - 33).to_le_bytes());
+            c[56..72].copy_from_slice(b"LLEVIX-PRUEBAVHD");
+            c[72..80].copy_from_slice(&lba_entradas.to_le_bytes());
+            c[80..84].copy_from_slice(&128u32.to_le_bytes());
+            c[84..88].copy_from_slice(&128u32.to_le_bytes());
+            c[88..92].copy_from_slice(&crc_entradas.to_le_bytes());
+            let crc = crc32(&c[..92]);
+            c[16..20].copy_from_slice(&crc.to_le_bytes());
+            c
+        };
+        img[512..1024].copy_from_slice(&cabecera(1, ultimo, 2));
+        img[1024..1024 + entradas.len()].copy_from_slice(&entradas);
+        let ini = ((ultimo - 32) * 512) as usize;
+        img[ini..ini + entradas.len()].copy_from_slice(&entradas);
+        img[(ultimo * 512) as usize..].copy_from_slice(&cabecera(ultimo, 1, ultimo - 32));
+    }
+
+    fn formatear_fat32(img: &mut Vec<u8>, primer: u64, ultimo: u64, etiqueta: &[u8; 11], archivo: &str) {
+        let mut cursor = Cursor::new(std::mem::take(img));
+        {
+            let mut vista = VistaParticion::new(&mut cursor, primer * 512, (ultimo - primer + 1) * 512);
+            fatfs::format_volume(
+                &mut vista,
+                fatfs::FormatVolumeOptions::new().fat_type(fatfs::FatType::Fat32).volume_label(*etiqueta),
+            )
+            .unwrap();
+            let fs = fatfs::FileSystem::new(&mut vista, fatfs::FsOptions::new()).unwrap();
+            let mut f = fs.root_dir().create_file(archivo).unwrap();
+            // Datos que ocupan varios MiB, para que la escritura dentro de la partición sea larga.
+            for i in 0..(8 * 1024u32) {
+                f.write_all(&[(i % 251) as u8 + 1; 1024]).unwrap();
+            }
+            drop(f);
+            fs.unmount().unwrap();
+        }
+        *img = cursor.into_inner();
+    }
+
+    /// Imagen de 192 MiB con la forma de Llevix: partición 1 de datos (FAT32, al final)
+    /// y partición 2 EFI (FAT32, al principio), ambas con archivos.
+    fn imagen_de_prueba() -> Vec<u8> {
+        let mut img = vec![0u8; 192 * 1024 * 1024];
+        let esp = (2048u64, 2048 + 64 * 2048 - 1);
+        let datos = (esp.1 + 1 + 2048, esp.1 + 2048 + 100 * 2048);
+        escribir_gpt_valida(&mut img, &[(DATOS, "LLEVIX-DATOS", datos.0, datos.1), (gpt::TIPO_ESP, "LLEVIX-EFI", esp.0, esp.1)]);
+        formatear_fat32(&mut img, esp.0, esp.1, b"LLEVIX-EFI ", "efi.bin");
+        formatear_fat32(&mut img, datos.0, datos.1, b"LLEVIX     ", "datos.bin");
+        img
+    }
+
+    /// Escribe la imagen de prueba en el disco virtual indicado por LLEVIX_VHD_DISCO.
+    /// LLEVIX_VHD_MODO=antiguo repite cómo escribía el creador hasta v0.0.6-test (para
+    /// comprobar que la prueba reproduce el problema); por defecto, el camino actual.
+    #[test]
+    #[ignore = "necesita un disco virtual conectado (lo prepara creador.yml)"]
+    fn escribe_en_un_disco_virtual() {
+        let numero: u32 = std::env::var("LLEVIX_VHD_DISCO").expect("falta LLEVIX_VHD_DISCO").parse().unwrap();
+        let antiguo = std::env::var("LLEVIX_VHD_MODO").as_deref() == Ok("antiguo");
+
+        let discos = enumerar_discos().unwrap();
+        let elegido = discos.iter().find(|d| d.numero == numero).expect("no existe ese disco").clone();
+        println!("disco elegido: {elegido:?}");
+        assert_eq!(elegido.bus, Bus::Virtual, "solo se prueba con discos virtuales");
+        assert!(elegido.modelo.contains("Msft") && elegido.modelo.contains("Virtual"), "{}", elegido.modelo);
+        assert!(!elegido.es_sistema);
+
+        let imagen = imagen_de_prueba();
+        assert!(elegido.tamano >= imagen.len() as u64);
+        let bmap = Bmap::leer(&crear_bmap(&imagen, 4096)).unwrap();
+        let zst = zstd::stream::encode_all(Cursor::new(&imagen), 3).unwrap();
+        let config = br#"{"version":1,"usuario":{"nombre":"prueba"}}"#;
+        let cancelar = AtomicBool::new(false);
+
+        let mut destino = abrir_elegido(&elegido, antiguo).unwrap();
+        if antiguo {
+            destino.borrar_tablas_sin_avisar().unwrap();
+            escritura::escribir_y_verificar(Cursor::new(zst), &bmap, &mut destino, &cancelar, &mut |_| {}).unwrap();
+            esp::escribir_config(&mut destino, config).unwrap();
+            assert_eq!(esp::leer_config(&mut destino).unwrap(), config);
+        } else {
+            destino.borrar_tablas().unwrap();
+            crear::escribir_todo(Cursor::new(zst), &bmap, &mut destino, None, config, &cancelar, &mut |_, _, _| {})
+                .unwrap();
+        }
+        destino.actualizar_windows();
+        assert_eq!(contar_particiones(&destino.archivo), 2, "Windows no ve las 2 particiones nuevas");
+        println!("escritura correcta en el disco virtual {numero} (modo {})", if antiguo { "antiguo" } else { "actual" });
     }
 }

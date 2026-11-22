@@ -235,7 +235,7 @@ if [[ -z "$version" ]]; then
     echo "Instalando $meta desde la ISO"
     en_destino "apt-get $solo_iso -y --no-install-recommends install $meta" || fallar "no se pudo instalar el kernel desde la ISO"
     rm -f "$D/tmp/llevix-iso.list"
-    umount -l "$D/media/llevix-iso" && rmdir "$D/media/llevix-iso" || true
+    if umount -l "$D/media/llevix-iso"; then rmdir "$D/media/llevix-iso" || true; fi
     version="$(version_kernel)"
 fi
 [[ -n "$version" ]] || fallar "la ISO no trae módulos del kernel"

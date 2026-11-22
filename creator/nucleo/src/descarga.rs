@@ -65,9 +65,15 @@ fn cliente() -> Resultado<reqwest::blocking::Client> {
 
 /// Descarga un texto pequeño (manifest.json, .bmap).
 pub fn descargar_texto(url: &str) -> Resultado<String> {
-    let r = cliente()?
-        .get(url)
-        .timeout(Duration::from_secs(60))
+    let mut pedido = cliente()?.get(url).timeout(Duration::from_secs(60));
+    // Solo en las pruebas de GitHub Actions: la API de GitHub limita las consultas sin
+    // identificarse. El creador nunca define esta variable.
+    if url.starts_with("https://api.github.com/") {
+        if let Ok(token) = std::env::var("LLEVIX_GITHUB_TOKEN") {
+            pedido = pedido.bearer_auth(token);
+        }
+    }
+    let r = pedido
         .send()
         .map_err(|e| Error::Descarga(format!("{url}: {e}")))?;
     if !r.status().is_success() {

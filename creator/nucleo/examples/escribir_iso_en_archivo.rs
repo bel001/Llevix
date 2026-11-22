@@ -8,7 +8,7 @@
 //! 1. Revisa la ISO (iso::analizar). 2. Escribe la imagen del instalador según el bmap.
 //! 3. Deja la ISO en la zona reservada (iso::escribir_iso). 4. Escribe el config en la ESP.
 
-use llevix_nucleo::{bmap::Bmap, escritura, esp, iso};
+use llevix_nucleo::{bmap::Bmap, crear, iso};
 use std::fs::{File, OpenOptions};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
@@ -41,24 +41,18 @@ fn ejecutar() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut disco = OpenOptions::new().read(true).write(true).create(true).truncate(true).open(&destino)?;
     disco.set_len(gib.parse::<u64>()? * 1024 * 1024 * 1024)?;
-    escritura::escribir_y_verificar(File::open(zst)?, &mapa, &mut disco, &cancelar, &mut |_| {})?;
-    println!("Instalador escrito y verificado");
-
-    let mut ultimo = 0;
-    iso::escribir_iso(&mut File::open(ruta_iso)?, &nombre_iso, &mut disco, &cancelar, &mut |h, t| {
+    // El mismo proceso que el creador: imagen, ISO, config y, al final, la tabla de particiones.
+    let json = std::fs::read(config)?;
+    let mut archivo_iso = File::open(ruta_iso)?;
+    let propia = crear::IsoPropia { archivo: &mut archivo_iso, nombre: &nombre_iso };
+    let mut ultimo = (crear::Paso::Escritura, 0u64);
+    crear::escribir_todo(File::open(zst)?, &mapa, &mut disco, Some(propia), &json, &cancelar, &mut |paso, h, t| {
         let pct = h * 100 / t.max(1);
-        if pct >= ultimo + 20 {
-            ultimo = pct;
-            println!("ISO {pct}%");
+        if paso != ultimo.0 || pct >= ultimo.1 + 20 {
+            ultimo = (paso, pct);
+            println!("{paso:?} {pct}%");
         }
     })?;
-    println!("ISO guardada y verificada en la zona reservada");
-
-    let json = std::fs::read(config)?;
-    esp::escribir_config(&mut disco, &json)?;
-    if esp::leer_config(&mut disco)? != json {
-        return Err("llevix-config.json no se guardó bien".into());
-    }
     println!("Listo: {} con la ISO y llevix-config.json", destino.display());
     Ok(())
 }
