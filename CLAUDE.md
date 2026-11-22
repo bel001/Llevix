@@ -91,8 +91,10 @@ Idioma del proyecto: español (código comentado, mensajes al usuario, documenta
 - Fase 4: completa (release.yml; Release de prueba v0.0.1-test con 7 variantes y manifest.json).
 - Fase 5: completa en lo automático (creador: pruebas en Linux y Windows, instalador
   .exe/.msi, prueba e2e con QEMU). Pendiente humano: crear un USB real (PENDIENTES.md).
-- Fase actual: 6 (preparar la beta y detenerse; rama fase-6).
-- Siguiente paso: ejecutar prompts/fase-6-beta.md.
+- Fase 6: preparada (report.sh, plantillas de issues, docs/BETA.md, README). El piloto
+  automático se detuvo: siguen tareas humanas de la beta (PENDIENTES.md).
+- Siguiente paso: atender issues de la beta ("revisa el issue #N y corrígelo") y, con las
+  decisiones de PENDIENTES.md tomadas, publicar v0.1.0-beta.1.
 - Herramientas locales: shellcheck con Docker
   (`MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W)":/mnt -w /mnt koalaman/shellcheck:stable -x <archivos>`).
 
