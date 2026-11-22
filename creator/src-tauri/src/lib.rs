@@ -49,38 +49,9 @@ struct ListaDiscos {
     chicos: Vec<Disco>,
 }
 
-/// Busca el manifest de la última versión estable; si todavía no hay ninguna estable,
-/// usa la versión de prueba más reciente.
-fn buscar_manifest() -> Result<Manifest, Error> {
-    use llevix_nucleo::descarga::descargar_texto;
-    use llevix_nucleo::manifest::{url_ultimo_manifest, REPOSITORIO};
-
-    if let Ok(texto) = descargar_texto(&url_ultimo_manifest()) {
-        return Manifest::leer(&texto);
-    }
-    let lista = descargar_texto(&format!("https://api.github.com/repos/{REPOSITORIO}/releases?per_page=20"))?;
-    let versiones: serde_json::Value =
-        serde_json::from_str(&lista).map_err(|e| Error::Manifest(e.to_string()))?;
-    for v in versiones.as_array().into_iter().flatten() {
-        if v["draft"].as_bool() == Some(true) {
-            continue;
-        }
-        let url = v["assets"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .find(|a| a["name"] == "manifest.json")
-            .and_then(|a| a["browser_download_url"].as_str());
-        if let Some(url) = url {
-            return Manifest::leer(&descargar_texto(url)?);
-        }
-    }
-    Err(Error::Manifest("todavía no hay ninguna versión publicada".into()))
-}
-
 #[tauri::command]
 async fn obtener_manifest() -> Result<Manifest, String> {
-    tauri::async_runtime::spawn_blocking(buscar_manifest)
+    tauri::async_runtime::spawn_blocking(llevix_nucleo::manifest::buscar_ultimo)
         .await
         .map_err(|e| e.to_string())?
         .map_err(|e| e.to_string())

@@ -85,6 +85,34 @@ pub fn url_ultimo_manifest() -> String {
     format!("https://github.com/{REPOSITORIO}/releases/latest/download/manifest.json")
 }
 
+/// Busca el manifest de la última versión estable; si todavía no hay ninguna estable,
+/// usa la versión de prueba (pre-release) más reciente.
+pub fn buscar_ultimo() -> Resultado<Manifest> {
+    use crate::descarga::descargar_texto;
+
+    if let Ok(texto) = descargar_texto(&url_ultimo_manifest()) {
+        return Manifest::leer(&texto);
+    }
+    let lista = descargar_texto(&format!("https://api.github.com/repos/{REPOSITORIO}/releases?per_page=20"))?;
+    let versiones: serde_json::Value =
+        serde_json::from_str(&lista).map_err(|e| Error::Manifest(e.to_string()))?;
+    for v in versiones.as_array().into_iter().flatten() {
+        if v["draft"].as_bool() == Some(true) {
+            continue;
+        }
+        let url = v["assets"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|a| a["name"] == "manifest.json")
+            .and_then(|a| a["browser_download_url"].as_str());
+        if let Some(url) = url {
+            return Manifest::leer(&descargar_texto(url)?);
+        }
+    }
+    Err(Error::Manifest("todavía no hay ninguna versión publicada".into()))
+}
+
 #[cfg(test)]
 mod pruebas {
     use super::*;

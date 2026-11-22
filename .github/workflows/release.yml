@@ -18,8 +18,11 @@ jobs:
   imagenes:
     uses: ./.github/workflows/build.yml
 
+  creador:
+    uses: ./.github/workflows/creador.yml
+
   publicar:
-    needs: imagenes
+    needs: [imagenes, creador]
     runs-on: ubuntu-24.04
     env:
       VERSION: ${{ github.ref_name }}
@@ -41,6 +44,19 @@ jobs:
           pattern: llevix-*
           path: ${{ env.DIR }}
           merge-multiple: true
+
+      - name: Descargar el instalador del creador
+        uses: actions/download-artifact@v5
+        with:
+          name: creador-llevix-windows
+          path: ${{ env.DIR }}/creador
+
+      - name: Nombres sin espacios para el instalador
+        run: |
+          cd "$DIR/creador"
+          for f in *.exe; do mv "$f" "../Llevix-Creador-$VERSION-setup.exe"; done
+          for f in *.msi; do mv "$f" "../Llevix-Creador-$VERSION.msi"; done
+          cd .. && rmdir creador && ls -lh
 
       - name: Dividir archivos de más de 2 GiB
         # GitHub Releases no acepta archivos de 2 GiB o más. Las imágenes grandes se
@@ -69,7 +85,8 @@ jobs:
             echo "# Llevix $VERSION"
             echo
             echo "Llevix convierte una memoria USB o un disco externo en un Linux portátil y persistente."
-            echo "Escribe la imagen con Rufus (modo DD) o balenaEtcher. El creador para Windows llega en una próxima versión."
+            echo "La forma más fácil: descarga **Llevix-Creador-$VERSION-setup.exe**, instálalo y sigue el asistente."
+            echo "También puedes escribir una imagen con Rufus (modo DD) o balenaEtcher."
             echo
             echo "## Variantes"
             echo
@@ -115,5 +132,5 @@ jobs:
           [[ "$VERSION" == *-* ]] && previa=(--prerelease)
           gh release create "$VERSION" --repo "${{ github.repository }}" \
             --title "Llevix $VERSION" --notes-file notas.md "${previa[@]}" \
-            manifest.json ./*.img.zst* ./*.bmap ./*.paquetes.txt
+            manifest.json ./*.img.zst* ./*.bmap ./*.paquetes.txt ./Llevix-Creador-*
           gh release view "$VERSION" --repo "${{ github.repository }}"
