@@ -4,6 +4,7 @@ description = "Creador de Llevix para Windows"
 edition.workspace = true
 version.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [lib]
 name = "llevix_creador_lib"

@@ -1,6 +1,7 @@
 {
   "name": "llevix-creador",
   "private": true,
+  "license": "MIT",
   "version": "0.1.0",
   "type": "module",
   "description": "Creador de Llevix: prepara una memoria USB o un disco externo con Linux portátil",

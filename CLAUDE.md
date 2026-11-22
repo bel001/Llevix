@@ -64,8 +64,12 @@ Idioma del proyecto: español (código comentado, mensajes al usuario, documenta
 - Scripts en bash con `set -euo pipefail`.
 
 ## Licencia
-- Pendiente: GPL-3.0 o MIT. Mientras tanto, no copiar código GPL de otros proyectos
-  y usar solo dependencias compatibles con ambas licencias.
+- MIT (archivo LICENSE), decidido por el dueño el 2026-11-22. Cubre el código de Llevix
+  (scripts, creador, pruebas). Cada imagen incluye software de las distros con sus propias
+  licencias (GPL y otras): por eso el Release publica la lista de paquetes y dónde está su
+  código fuente.
+- No copiar código GPL dentro de este repositorio (haría GPL a todo el proyecto). Usar
+  dependencias con licencias compatibles con MIT (MIT, BSD, Apache-2.0, ISC, Zlib…).
 
 ## Forma de trabajo
 - Modo principal: piloto automático. Seguir las reglas de AUTOPILOTO.md.
