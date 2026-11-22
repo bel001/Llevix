@@ -376,6 +376,13 @@ grep -q "rootflags=subvol=@" "$ROOT/boot/grub/grub.cfg" \
 
 # ---------- 8. Limpieza ----------
 
+# Lista exacta de paquetes y versiones (para el Release y el cumplimiento de la GPL:
+# con esto se puede obtener el código fuente de cada paquete).
+paso "Guardando la lista de paquetes"
+en_chroot "dpkg-query -W -f='\${Package}\t\${Version}\t\${source:Package}\t\${source:Version}\n'" \
+    | sort > "$OUT_DIR/llevix-$VARIANTE.paquetes.txt"
+wc -l < "$OUT_DIR/llevix-$VARIANTE.paquetes.txt"
+
 paso "Limpiando"
 escribir_fuentes "$MIRROR_PUBLICO" "$MIRROR_SEGURIDAD"
 rm -f "$ROOT/usr/sbin/policy-rc.d"
