@@ -95,6 +95,7 @@ qemu_iniciar() {
     rm -f "$TRABAJO/monitor.sock" "$TRABAJO/qga.sock"
     args+=("${QEMU_ACEL[@]}" -smp 2 -m "${LLEVIX_TEST_MEM:-4096}" -vga std -display none
            -nic user,model=virtio-net-pci
+           -audiodev none,id=sonido -device intel-hda -device hda-duplex,audiodev=sonido
            -serial "file:$QEMU_SERIE"
            -monitor "unix:$TRABAJO/monitor.sock,server,nowait"
            -device virtio-serial
