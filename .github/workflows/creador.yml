@@ -3,7 +3,7 @@ name: creador
 
 on:
   push:
-    branches: [main, 'fase-*']
+    branches: [main, 'fase-*', 'beta-*']
     paths:
       - 'creator/**'
       - 'tests/creador-e2e.sh'
