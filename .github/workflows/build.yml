@@ -46,6 +46,9 @@ jobs:
           - mint-22-cinnamon
           - mint-22-mate
           - mint-22-xfce
+          - debian-13-gnome
+          - debian-13-kde
+          - debian-13-xfce
     env:
       SALIDA: /mnt/llevix
       LLEVIX_MIRROR: http://azure.archive.ubuntu.com/ubuntu
@@ -61,8 +64,8 @@ jobs:
       - name: Instalar herramientas
         run: |
           sudo apt-get update
-          sudo apt-get install -y debootstrap gdisk dosfstools exfatprogs btrfs-progs \
-            zstd bmap-tools qemu-system-x86 qemu-utils ovmf seabios socat mtools jq openssl
+          sudo apt-get install -y debootstrap debian-archive-keyring gdisk dosfstools exfatprogs \
+            btrfs-progs zstd bmap-tools qemu-system-x86 qemu-utils ovmf seabios socat mtools jq openssl
 
       - name: Construir imagen
         id: construir
