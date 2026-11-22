@@ -1,0 +1,44 @@
+# Saca de las ISO oficiales la lista de paquetes que instala cada distro.
+# Se ejecuta a mano (Actions → manifiestos → Run workflow) cuando sale una versión nueva;
+# el resultado (artefacto) se guarda en image/distros/paquetes/.
+name: manifiestos
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  mint:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        sabor: [cinnamon, mate, xfce]
+    env:
+      ESPEJO: https://mirrors.kernel.org/linuxmint/stable/22.3
+      ISO: linuxmint-22.3-${{ matrix.sabor }}-64bit.iso
+    steps:
+      - uses: actions/checkout@v5
+      - name: Herramientas
+        run: sudo apt-get update && sudo apt-get install -y libarchive-tools
+      - name: Descargar y verificar la ISO
+        run: |
+          cd /mnt && sudo chown "$USER" .
+          curl -fsSLO "$ESPEJO/sha256sum.txt"
+          curl -fsSL --retry 3 -o "$ISO" "$ESPEJO/$ISO"
+          grep " \*$ISO\$" sha256sum.txt | sed 's/ \*/  /' | sha256sum -c -
+      - name: Lista de paquetes
+        run: |
+          mkdir -p salida
+          ./tools/manifiesto-iso.sh "/mnt/$ISO" > "salida/mint-22-${{ matrix.sabor }}.txt"
+          wc -l "salida/mint-22-${{ matrix.sabor }}.txt"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: paquetes-mint-22-${{ matrix.sabor }}
+          path: salida/
