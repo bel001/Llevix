@@ -1,0 +1,102 @@
+# Guarda el código fuente de todo lo que distribuye una versión de Llevix (cumplimiento de
+# la GPL; ver docs/CODIGO-FUENTE.md). Se ejecuta al final de cada publicación (release.yml)
+# y a mano para versiones anteriores: Actions → fuentes → Run workflow → etiqueta.
+#
+# Por cada base (Ubuntu, Mint, Debian, Zorin) descarga el código de los paquetes exactos
+# que listan los llevix-<variante>.paquetes.txt de la versión y lo sube al mismo Release:
+#   llevix-fuentes-<base>.tar.001, .002…   (partes de un .tar; se unen en orden)
+#   llevix-fuentes-<base>.tar.sha256       (suma del .tar completo)
+#   llevix-fuentes-<base>.faltantes.txt    (lo que no se pudo obtener y dónde está)
+name: fuentes
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Etiqueta de la versión (por ejemplo v0.0.7-test)'
+        required: true
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  fuentes:
+    strategy:
+      fail-fast: false
+      matrix:
+        base: [ubuntu, mint, debian, zorin]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    env:
+      VERSION: ${{ inputs.version }}
+      BASE: ${{ matrix.base }}
+      DIR: /mnt/fuentes
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Preparar carpeta
+        run: |
+          sudo mkdir -p "$DIR" && sudo chown "$USER" "$DIR"
+          df -h /mnt
+
+      - name: Listas de paquetes de la versión
+        id: listas
+        run: |
+          gh release download "$VERSION" -p '*.paquetes.txt' -D "$DIR/todas"
+          mkdir -p "$DIR/listas"
+          case "$BASE" in
+            ubuntu) patrones=(ubuntu-* kubuntu-* xubuntu-* lubuntu-* instalador) ;;
+            *)      patrones=("$BASE-*") ;;
+          esac
+          for p in "${patrones[@]}"; do
+            for f in "$DIR"/todas/llevix-$p.paquetes.txt; do
+              [[ -f "$f" ]] && cp "$f" "$DIR/listas/"
+            done
+          done
+          ls -l "$DIR/listas"
+          if compgen -G "$DIR/listas/*.txt" >/dev/null; then
+            echo "hay=si" >> "$GITHUB_OUTPUT"
+          else
+            echo "Esta versión no tiene variantes de $BASE."
+            echo "hay=no" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Descargar el código fuente (en un contenedor)
+        if: steps.listas.outputs.hay == 'si'
+        run: |
+          imagen=ubuntu:24.04
+          [[ "$BASE" == debian ]] && imagen=debian:trixie
+          docker run --rm -v "$PWD":/repo:ro -v "$DIR":/d -w /repo "$imagen" \
+            bash -c './tools/fuentes.sh "$0" /d/codigo /d/listas/*.txt' "$BASE"
+          sudo chown -R "$USER" "$DIR/codigo"
+
+      - name: Empaquetar y publicar en el Release
+        if: steps.listas.outputs.hay == 'si'
+        run: |
+          cd "$DIR"
+          nombre="llevix-fuentes-$BASE"
+          cp codigo/faltantes.txt "$nombre.faltantes.txt"
+          # Un solo .tar (el código ya viene comprimido), cortado en partes de menos de
+          # 2 GiB sin ocupar el doble de espacio.
+          tar -cf - -C codigo . | split -b 1900M -d -a 3 --numeric-suffixes=1 - "$nombre.tar."
+          echo "$(cat "$nombre".tar.0* | sha256sum | cut -d' ' -f1)  $nombre.tar" > "$nombre.tar.sha256"
+          ls -lh "$nombre".*
+          cat "$nombre.tar.sha256"
+          gh release upload "$VERSION" --clobber "$nombre".tar.0* "$nombre.tar.sha256" "$nombre.faltantes.txt"
+          {
+            echo "### Código fuente: $BASE"
+            echo "- Paquetes descargados: $(wc -l < codigo/descargados.txt)"
+            echo "- Faltantes: $(wc -l < codigo/faltantes.txt) (ver $nombre.faltantes.txt)"
+            echo "- Tamaño: $(du -sh codigo | cut -f1)"
+          } >> "$GITHUB_STEP_SUMMARY"
