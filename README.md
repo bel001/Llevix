@@ -97,12 +97,14 @@ con `llevix` / `llevix` y te pide cambiar la contraseña.
 | Llevix, basado en Linux Mint 22 Cinnamon | Cinnamon | Fácil si vienes de Windows |
 | Llevix, basado en Linux Mint 22 MATE | MATE | **Ligera**, clásica |
 | Llevix, basado en Linux Mint 22 Xfce | Xfce | **Ligera** |
-
-En preparación: Debian 13 (GNOME, KDE Plasma y Xfce) y Zorin OS 18.
+| Llevix, basado en Debian 13 GNOME | GNOME | Estable y sobrio, 8 GB de RAM |
+| Llevix, basado en Debian 13 KDE Plasma | KDE Plasma | Muy configurable, 8 GB de RAM |
+| Llevix, basado en Debian 13 Xfce | Xfce | **Ligera**, 4 GB de RAM |
+| Llevix, basado en Zorin OS 18 Core | Zorin (GNOME) | Aspecto tipo Windows o macOS, 8 GB de RAM |
 
 Cada variante trae su escritorio tal como lo entrega la distribución, con red, sonido,
 navegador y todo lo básico listo para usar. Llevix es un proyecto independiente: no está
-afiliado a Canonical, Linux Mint ni las demás distribuciones.
+afiliado a Canonical, Linux Mint, Debian, Zorin ni las demás distribuciones.
 
 ## Requisitos
 
@@ -165,6 +167,6 @@ El código de Llevix (scripts, creador, pruebas y documentación) se publica baj
 **[licencia MIT](LICENSE)**: puedes usarlo, copiarlo, modificarlo y distribuirlo libremente,
 también con fines comerciales, siempre que conserves el aviso de copyright y la licencia.
 
-Las imágenes de Llevix incluyen software de Ubuntu, Linux Mint y otras distribuciones, cada
+Las imágenes de Llevix incluyen software de Ubuntu, Linux Mint, Debian, Zorin OS y otras distribuciones, cada
 uno con su propia licencia (GPL y otras). Cada versión publica la lista exacta de paquetes
 (`llevix-<variante>.paquetes.txt`) y dónde obtener su código fuente.

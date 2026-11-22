@@ -22,8 +22,9 @@ Idioma del proyecto: español (código comentado, mensajes al usuario, documenta
 
 ## Distribuciones (las elige el usuario)
 - Llevix NO cambia el escritorio: cada variante se entrega como la distro la trae.
-- v1: Ubuntu 24.04 LTS (Ubuntu, Kubuntu, Xubuntu, Lubuntu) y Linux Mint 22
-  (Cinnamon, MATE, Xfce). Cada variante es un archivo en image/distros/.
+- v1: Ubuntu 24.04 LTS (Ubuntu, Kubuntu, Xubuntu, Lubuntu), Linux Mint 22 (Cinnamon, MATE,
+  Xfce), Debian 13 (GNOME, KDE Plasma, Xfce) y Zorin OS 18 Core (construida desde su ISO
+  oficial con image/desde-iso.sh). Cada variante es un archivo en image/distros/.
 - El creador marca como "ligeras" las variantes para PCs con poca RAM (Xubuntu,
   Lubuntu, Mint Xfce, Mint MATE).
 - Lo que Llevix sí agrega a todas: capa de portabilidad, primer arranque y ajustes
@@ -103,7 +104,10 @@ Idioma del proyecto: español (código comentado, mensajes al usuario, documenta
 - Decidido A + B: catálogo más grande y "Trae tu ISO" (docs/planes/catalogo-e-iso-propia.md).
 - Fase 8: completa en lo automático ("Trae tu ISO": Mint, Kubuntu y Ubuntu reales verdes en
   CI con el núcleo del creador). Pendiente humano: probarlo en un USB real (PENDIENTES.md).
-- Siguiente paso: fase 9 (prompts/fase-9-catalogo.md).
+- Fase 9: completa en lo automático (11 variantes verdes: + Debian 13 GNOME/KDE/Xfce y
+  Zorin OS 18 desde su ISO oficial; creador con interfaz nueva). Licencia MIT.
+- Siguiente paso: pruebas humanas de la beta (PENDIENTES.md) y, con ellas, v0.1.0-beta.1.
+  Después: elementary OS (fuente estable), Fedora y Secure Boot con el certificado 2023.
 - Herramientas locales: shellcheck con Docker
   (`MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W)":/mnt -w /mnt koalaman/shellcheck:stable -x <archivos>`).
 

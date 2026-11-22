@@ -2,6 +2,40 @@
 
 Lo más reciente arriba. Cada fase anota qué se hizo, qué se decidió y qué quedó pendiente.
 
+## Fase 9 — Catálogo más grande (2026-11-22)
+
+**Qué se hizo**
+- Variantes **desde la ISO oficial** (`TIPO=desde-iso`, `image/desde-iso.sh`): en CI se instala
+  la ISO con el instalador de la fase 8 (encabezado `modo=imagen`: no amplía datos y apaga),
+  luego se borra el instalador, se aplica la marca, se agregan las herramientas de Llevix y
+  el agente de QEMU, se comprueba el escritorio completo y se libera el espacio.
+  Primera: **Zorin OS 18 Core** (ISO 18.1 verificada por SHA256).
+- **Debian 13 "trixie"** (GNOME, KDE Plasma, Xfce) con `BASE=debian` en build.sh: debootstrap
+  con el llavero de Debian, firmware no libre (como su instalador), kernel/shim/GRUB firmados
+  por Debian, Firefox ESR en español, `EFI/debian/grub.cfg` puente.
+- `image/lib/verificar-escritorio.sh` compartido (acepta Firefox, Firefox ESR, Chromium…).
+- Creador con interfaz nueva y sobria (sin degradados), vista previa en el navegador con
+  datos simulados (`npm --prefix creator run dev`, `?captura=N`).
+- Licencia MIT y README con capturas (en main durante la fase).
+- Resultado: **11 variantes + instalador en verde** (arranque UEFI+SB/UEFI/BIOS, primer
+  arranque, resistencia).
+
+**Problemas encontrados**
+- Debian no usa systemd-resolved: `/etc/resolv.conf` apuntaba a la nada y no había DNS
+  (lo detectó la prueba de apt). Ahora solo se enlaza si existe systemd-resolved.
+- Debian no crea `/boot/vmlinuz`: `link_in_boot = yes` en `/etc/kernel-img.conf`.
+- `task-xfce-desktop` no trae el ícono de red: se agrega `network-manager-gnome`.
+- `locale-gen` de Debian no acepta argumentos: se usa `/etc/locale.gen`.
+- Sin config, Debian GNOME no tiene `gnome-initial-setup`: se crea la cuenta `llevix`.
+
+**Decisiones**
+- Pop!_OS queda fuera: su kernel no está firmado y no arrancaría con Secure Boot.
+- elementary OS: su descarga usa enlaces temporales; pendiente buscar una fuente estable.
+- Fedora: herramientas distintas (dnf); se evalúa más adelante.
+
+**Pendiente**
+- `accounts-daemon` falla en Debian KDE (el inicio de sesión funciona igual); revisar.
+
 ## Fase 8 — "Trae tu ISO" (2026-11-22)
 
 **Qué se hizo**
