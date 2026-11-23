@@ -11,6 +11,7 @@
 //! - [`config`]: arma y valida `llevix-config.json` (la contraseña solo como hash SHA-512).
 //! - [`disco`]: decide qué discos se pueden mostrar (solo USB, nunca el del sistema).
 //! - [`descarga`]: descarga con reanudación y verificación SHA256.
+//! - [`prueba_disco`]: detecta memorias falsas y mide si el disco es muy lento.
 //! - `windows` (solo en Windows): enumera discos reales y los abre para escribir.
 
 pub mod bmap;
@@ -24,6 +25,7 @@ pub mod esp;
 pub mod gpt;
 pub mod iso;
 pub mod manifest;
+pub mod prueba_disco;
 
 #[cfg(windows)]
 pub mod windows;

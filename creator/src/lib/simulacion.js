@@ -63,6 +63,7 @@ async function simularCreacion(conIso) {
     ["descarga", 3.6 * GB, 40],
     ["verificando_descarga", 3.6 * GB, 15],
     ["preparando", 0, 5],
+    ["prueba_disco", 64 * 1024 * 1024, 10],
     ["escritura", 4.4 * GB, 40],
     ["verificacion", 4.4 * GB, 20],
     ...(conIso ? [["iso", 3 * 2.9 * GB, 25]] : []),

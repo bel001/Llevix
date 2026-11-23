@@ -62,6 +62,9 @@ fn ejecutar() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut disco = OpenOptions::new().read(true).write(true).create(true).truncate(true).open(&destino)?;
     disco.set_len(tamano)?;
+    // Igual que el creador: primero se prueba el disco (memorias falsas o muy lentas).
+    let prueba = llevix_nucleo::prueba_disco::probar(&mut disco, tamano, &cancelar, &mut |_, _| {})?;
+    println!("Prueba del disco: {:.1} MB/s, {:.0} escrituras pequeñas por segundo", prueba.mb_s, prueba.iops);
     // El mismo proceso que el creador: la tabla de particiones se escribe al final.
     let json = std::fs::read(config)?;
     let mut ultimo = (crear::Paso::Escritura, 0u64);

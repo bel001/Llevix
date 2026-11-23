@@ -36,6 +36,10 @@ pub enum Error {
     #[error("Disco no permitido: {0}")]
     DiscoNoPermitido(String),
 
+    /// El mensaje ya viene completo (ver prueba_disco).
+    #[error("{0}")]
+    DiscoDefectuoso(String),
+
     #[error("Operación cancelada")]
     Cancelado,
 }
