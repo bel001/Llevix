@@ -301,3 +301,23 @@ navegador y "la configuración de APT está corrupta".
   está dañada». Quedaba en la caché una parte de v0.0.6 con el mismo nombre y tamaño; el
   creador la daba por descargada y fallaba la suma. Ahora el nombre de cada parte lleva el
   comienzo de su SHA256 y se borran las descargas de otras versiones.
+
+## Beta — USB lentos y memorias falsas (2026-11-23)
+
+- **Síntoma (beta, en vivo):** Zorin en una memoria USB barata, PC con 24 GB de RAM:
+  arranca y conecta el Wi-Fi, pero el navegador y la configuración se quedan cargando y
+  no se puede usar.
+- **Causa probable:** sin límite, Linux junta hasta el 20 % de la RAM (~5 GB) en
+  escrituras pendientes y las manda juntas; una memoria que escribe a pocos MB/s tarda
+  minutos y todo programa que guarde algo espera. La ISO original "en vivo" no lo sufre
+  porque escribe en la RAM, pero tampoco guarda nada.
+- **Imagen:** `image/overlay/etc/sysctl.d/60-llevix-escritura.conf` limita las escrituras
+  pendientes (16 MB en segundo plano, 48 MB como máximo) en todas las variantes.
+- **Prueba nueva:** `tests/usb-lento-test.sh` limita el disco de QEMU a 20 MB/s de lectura
+  y 3 MB/s de escritura, mide el navegador y el guardado de un archivo mientras otro
+  programa escribe 1,5 GB, con el ajuste y sin él (para comparar).
+- **Creador:** `creator/nucleo/src/prueba_disco.rs` prueba el disco antes de escribir:
+  bloques con datos únicos en múltiplos de una potencia de dos por todo el disco (si una
+  memoria falsa "da la vuelta", un bloque pisa a otro) y el final del disco; si no se
+  leen de vuelta, se detiene. Si escribe a menos de 5 MB/s o hace menos de 50 escrituras
+  de 4 KiB por segundo, avisa que es lenta. Todo lo de prueba queda en cero.
