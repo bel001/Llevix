@@ -5,11 +5,10 @@
 #
 # QEMU limita la velocidad del disco virtual a la de una memoria USB barata
 # (lectura ~20 MB/s, escritura ~3 MB/s). Con esa velocidad se mide:
-#   1. Cuánto tarda en abrir el navegador por primera vez (crea su perfil).
+#   1. Cuánto tarda en abrir el navegador por primera vez (crea su perfil), cuánto lee
+#      y cuánto escribe. También a velocidad normal, para comparar.
 #   2. Mientras otro programa escribe un archivo grande: cuánto tarda en guardarse un
-#      archivo pequeño y cuánto tarda en abrir el navegador. Sin el ajuste de Llevix
-#      (image/overlay/etc/sysctl.d/60-llevix-escritura.conf) el sistema se congela
-#      minutos; se mide también sin el ajuste, solo para comparar.
+#      archivo pequeño y cuánto tarda en abrir el navegador.
 #
 # No necesita root. Trabaja sobre una copia de la imagen.
 #
@@ -28,10 +27,10 @@ USUARIO="prueba"
 # memoria real, lecturas y escrituras se reparten el mismo canal (100 operaciones de
 # 64 KiB por segundo entre las dos).
 LENTO="throttling.bps-read=20971520,throttling.bps-write=3145728,throttling.iops-total=100,throttling.iops-size=65536"
-# Límites (segundos) con el ajuste de Llevix activo.
-MAX_NAVEGADOR=240
+# Límites (segundos).
+MAX_NAVEGADOR=120
 MAX_GUARDAR=30
-MAX_NAVEGADOR_CARGA=300
+MAX_NAVEGADOR_CARGA=240
 
 # shellcheck source=tests/lib/qemu.sh
 source "$DIR_REPO/tests/lib/qemu.sh"
@@ -60,26 +59,32 @@ en_llevix() {
 }
 salida() { tail -n 1 "$TRABAJO/salida.txt"; }
 
-# Abre el navegador sin pantalla, con un perfil nuevo, y escribe "<segundos> <código>".
+# Abre el navegador sin pantalla, con un perfil nuevo (como la primera vez), y escribe
+# en la última línea "<segundos> <código> <MB leídos> <MB escritos>" (del disco del
+# sistema). Si tarda o falla, antes muestra el final de lo que dijo el navegador.
 # Firefox en casi todas las variantes; Brave en Zorin OS.
-# Sin "sync" antes de vaciar la caché: con la carga de fondo esperaría a toda la carga.
 NAVEGADOR='h=/home/'"$USUARIO"'
 cmd=""
 for b in /usr/lib/firefox/firefox /usr/lib/firefox-esr/firefox-esr /usr/bin/firefox; do
-    [ -x "$b" ] && { cmd="MOZ_HEADLESS=1 $b --headless --screenshot /tmp/llevix-nav.png about:blank"; break; }
+    [ -x "$b" ] && { cmd="env MOZ_HEADLESS=1 $b --headless --screenshot /tmp/llevix-nav.png about:blank"; break; }
 done
 if [ -z "$cmd" ]; then
     for b in /usr/bin/brave-browser /usr/bin/chromium /usr/bin/google-chrome; do
         [ -x "$b" ] && { cmd="$b --headless=new --no-sandbox --disable-gpu --no-first-run --screenshot=/tmp/llevix-nav.png about:blank"; break; }
     done
 fi
-[ -n "$cmd" ] || { echo "0 99"; exit 0; }
+[ -n "$cmd" ] || { echo "0 99 0 0"; exit 0; }
 rm -rf "$h/.mozilla" "$h/.config/mozilla" "$h/.cache/mozilla" "$h/.config/BraveSoftware" "$h/.cache/BraveSoftware" "$h/.config/chromium" "$h/.cache/chromium"
+d=$(lsblk -no PKNAME "$(findmnt -no SOURCE / | sed "s/\[.*//")")
 echo 3 > /proc/sys/vm/drop_caches
+set -- $(cat /sys/block/$d/stat); l0=$3; e0=$7
 s=$(date +%s)
-su - '"$USUARIO"' -c "timeout 280 $cmd" >/dev/null 2>&1
+su - '"$USUARIO"' -c "timeout 280 $cmd" > /tmp/llevix-nav.log 2>&1
 r=$?
-echo "$(( $(date +%s) - s )) $r"'
+t=$(( $(date +%s) - s ))
+set -- $(cat /sys/block/$d/stat)
+if [ "$r" != 0 ] || [ "$t" -gt 60 ]; then echo "navegador: $cmd"; tail -n 12 /tmp/llevix-nav.log; fi
+echo "$t $r $(( ($3 - l0) / 2048 )) $(( ($7 - e0) / 2048 ))"'
 
 # Guarda un archivo pequeño (con fsync, como hace cualquier programa al guardar) y
 # escribe los segundos que tardó.
@@ -98,15 +103,21 @@ sleep 2
 rm -f /home/'"$USUARIO"'/grande.bin /home/'"$USUARIO"'/pequeno.txt
 sync'
 
-# medir_con_carga <etiqueta> → deja T_GUARDAR y T_NAV (segundos) y C_NAV (código).
-medir_con_carga() {
-    T_GUARDAR=600; T_NAV=999; C_NAV=1
-    en_llevix "$CARGA_INICIAR" 60 || true
-    if en_llevix "$GUARDAR" 620; then T_GUARDAR="$(salida)"; fi
-    info "$1: guardar un archivo pequeño tardó ${T_GUARDAR} s"
-    if en_llevix "$NAVEGADOR" 320; then read -r T_NAV C_NAV <<<"$(salida)"; fi
-    info "$1: el navegador abrió en ${T_NAV} s (código $C_NAV)"
-    en_llevix "$CARGA_PARAR" 900 || info "$1: limpiar la carga tardó demasiado"
+# medir_navegador <etiqueta> → deja T_NAV (segundos) y C_NAV (código; 99 = no hay).
+medir_navegador() {
+    T_NAV=999; C_NAV=1
+    local leidos="?" escritos="?"
+    if en_llevix "$NAVEGADOR" 320; then
+        read -r T_NAV C_NAV leidos escritos <<<"$(salida)"
+    fi
+    if [[ "$C_NAV" == 99 ]]; then
+        info "$1: no se encontró el navegador"
+        return
+    fi
+    info "$1: el navegador abrió en ${T_NAV} s (código $C_NAV; leyó $leidos MB y escribió $escritos MB)"
+    if [[ "$C_NAV" != 0 ]] || (( T_NAV > 60 )); then
+        sed '$d; s/^/          /' "$TRABAJO/salida.txt"
+    fi
 }
 
 "$DIR_REPO/tools/make-config.sh" --usuario "$USUARIO" --contrasena "clave-de-prueba" \
@@ -123,6 +134,8 @@ if qemu_esperar_informe "$TIMEOUT" && qga_esperar 120; then
     else
         falla "llevix-firstboot no terminó bien ($INFORME_PRIMER_ARRANQUE)"
     fi
+    # Para comparar: el mismo navegador con el disco a velocidad normal.
+    medir_navegador "velocidad normal"
 else
     falla "el primer arranque no llegó al escritorio"
     tail -n 40 "$QEMU_SERIE" || true
@@ -133,41 +146,31 @@ qemu_apagar || falla "no se apagó ordenadamente"
 
 echo; echo "Arranque con el disco lento (lectura 20 MB/s, escritura 3 MB/s)"
 inicio=$SECONDS
-LLEVIX_TEST_DISCO_OPC="$LENTO" LLEVIX_TEST_MEM=8192 \
-    qemu_iniciar usb-lento-2 "$MODO" "$TRABAJO/disco.img" raw
+LLEVIX_TEST_DISCO_OPC="$LENTO" LLEVIX_TEST_MEM=8192     qemu_iniciar usb-lento-2 "$MODO" "$TRABAJO/disco.img" raw
 if qemu_esperar_informe $((TIMEOUT * 2)) && qga_esperar 300; then
     info "llegó al escritorio en $((SECONDS - inicio)) s"
     qemu_captura "$DIR_PRUEBAS/usb-lento.png"
 
-    if en_llevix "sysctl -n vm.dirty_bytes vm.dirty_background_bytes | tr '\n' ' '"; then
-        valores="$(salida)"
-        if [[ "$valores" == "50331648 16777216"* ]]; then
-            ok "el ajuste de escritura de a poco está activo ($valores)"
-        else
-            falla "el ajuste de escritura no está activo ($valores)"
-        fi
-    else
-        falla "no se pudo leer el ajuste de escritura"
-    fi
-
     echo; echo "1. Abrir el navegador por primera vez"
-    t=999; c=1
-    if en_llevix "$NAVEGADOR" 320; then read -r t c <<<"$(salida)"; fi
-    if [[ "$c" == 99 ]]; then
-        info "no se encontró el navegador: se omite la medición"
-    elif [[ "$c" == 0 ]] && (( t <= MAX_NAVEGADOR )); then
-        ok "el navegador abrió en $t s (límite $MAX_NAVEGADOR s)"
+    medir_navegador "USB lento"
+    if [[ "$C_NAV" == 99 ]]; then
+        :
+    elif [[ "$C_NAV" == 0 ]] && (( T_NAV <= MAX_NAVEGADOR )); then
+        ok "el navegador abrió en $T_NAV s (límite $MAX_NAVEGADOR s)"
     else
-        falla "el navegador tardó $t s o falló (código $c; límite $MAX_NAVEGADOR s)"
+        falla "el navegador tardó $T_NAV s o falló (código $C_NAV; límite $MAX_NAVEGADOR s)"
     fi
 
-    echo; echo "2. Con otro programa escribiendo un archivo grande (ajuste de Llevix)"
-    medir_con_carga "con el ajuste"
+    echo; echo "2. Con otro programa escribiendo un archivo grande"
+    T_GUARDAR=600
+    en_llevix "$CARGA_INICIAR" 60 || true
+    if en_llevix "$GUARDAR" 620; then T_GUARDAR="$(salida)"; fi
     if (( T_GUARDAR <= MAX_GUARDAR )); then
         ok "guardar un archivo no se congela: ${T_GUARDAR} s (límite $MAX_GUARDAR s)"
     else
         falla "guardar un archivo tardó ${T_GUARDAR} s (límite $MAX_GUARDAR s)"
     fi
+    medir_navegador "USB lento con escritura de fondo"
     if [[ "$C_NAV" == 99 ]]; then
         :
     elif [[ "$C_NAV" == 0 ]] && (( T_NAV <= MAX_NAVEGADOR_CARGA )); then
@@ -175,13 +178,7 @@ if qemu_esperar_informe $((TIMEOUT * 2)) && qga_esperar 300; then
     else
         falla "con escritura de fondo el navegador tardó ${T_NAV} s o falló (código $C_NAV)"
     fi
-
-    echo; echo "3. Lo mismo SIN el ajuste (valores normales de Linux), solo para comparar"
-    if en_llevix "sysctl -q -w vm.dirty_ratio=20 vm.dirty_background_ratio=10"; then
-        medir_con_carga "sin el ajuste"
-    else
-        info "no se pudieron poner los valores normales"
-    fi
+    en_llevix "$CARGA_PARAR" 900 || info "limpiar la carga tardó demasiado"
 else
     falla "con el disco lento no llegó al escritorio"
     tail -n 40 "$QEMU_SERIE" || true

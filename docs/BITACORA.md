@@ -307,15 +307,15 @@ navegador y "la configuración de APT está corrupta".
 - **Síntoma (beta, en vivo):** Zorin en una memoria USB barata, PC con 24 GB de RAM:
   arranca y conecta el Wi-Fi, pero el navegador y la configuración se quedan cargando y
   no se puede usar.
-- **Causa probable:** sin límite, Linux junta hasta el 20 % de la RAM (~5 GB) en
-  escrituras pendientes y las manda juntas; una memoria que escribe a pocos MB/s tarda
-  minutos y todo programa que guarde algo espera. La ISO original "en vivo" no lo sufre
-  porque escribe en la RAM, pero tampoco guarda nada.
-- **Imagen:** `image/overlay/etc/sysctl.d/60-llevix-escritura.conf` limita las escrituras
-  pendientes (16 MB en segundo plano, 48 MB como máximo) en todas las variantes.
+- **Primera hipótesis (descartada):** limitar las escrituras pendientes de Linux
+  (`vm.dirty_bytes`). Medido en CI con un USB lento simulado, empeoró el guardado de
+  archivos (2–11 s contra 1–3 s sin el límite): se quitó.
 - **Prueba nueva:** `tests/usb-lento-test.sh` limita el disco de QEMU a 20 MB/s de lectura
-  y 3 MB/s de escritura, mide el navegador y el guardado de un archivo mientras otro
-  programa escribe 1,5 GB, con el ajuste y sin él (para comparar).
+  y 3 MB/s de escritura (con lecturas y escrituras compartiendo el canal), mide el
+  navegador (tiempo, MB leídos y escritos) y el guardado de un archivo mientras otro
+  programa escribe 1,5 GB.
+- **Hallazgo:** Zorin trae Brave, no Firefox. En el USB lento Brave tardó 215 s en abrir
+  la primera vez (Firefox ~20 s en las demás) y con escritura de fondo no llegó a abrir.
 - **Creador:** `creator/nucleo/src/prueba_disco.rs` prueba el disco antes de escribir:
   bloques con datos únicos en múltiplos de una potencia de dos por todo el disco (si una
   memoria falsa "da la vuelta", un bloque pisa a otro) y el final del disco; si no se
