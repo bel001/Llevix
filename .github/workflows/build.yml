@@ -102,6 +102,12 @@ jobs:
           LLEVIX_TEST_DIR: ${{ env.SALIDA }}/pruebas
         run: ./tests/resistencia-test.sh "$SALIDA/llevix-${{ matrix.variante }}.img"
 
+      - name: Probar con un USB lento (navegador y escritura sin congelarse)
+        if: ${{ !cancelled() && steps.construir.outcome == 'success' }}
+        env:
+          LLEVIX_TEST_DIR: ${{ env.SALIDA }}/pruebas
+        run: ./tests/usb-lento-test.sh "$SALIDA/llevix-${{ matrix.variante }}.img"
+
       - name: Mapa de bloques (.bmap) y tamaño
         run: |
           cd "$SALIDA"
@@ -243,6 +249,12 @@ jobs:
         env:
           LLEVIX_TEST_DIR: ${{ env.SALIDA }}/pruebas
         run: ./tests/resistencia-test.sh "$SALIDA/llevix-${{ matrix.variante }}.img"
+
+      - name: Probar con un USB lento (navegador y escritura sin congelarse)
+        if: ${{ !cancelled() && steps.construir.outcome == 'success' }}
+        env:
+          LLEVIX_TEST_DIR: ${{ env.SALIDA }}/pruebas
+        run: ./tests/usb-lento-test.sh "$SALIDA/llevix-${{ matrix.variante }}.img"
 
       - name: Mapa de bloques, tamaño y compresión
         run: |
