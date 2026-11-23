@@ -103,11 +103,36 @@ sleep 2
 rm -f /home/'"$USUARIO"'/grande.bin /home/'"$USUARIO"'/pequeno.txt
 sync'
 
+# Deja Llevix quieto 5 minutos y cuenta qué se escribe solo: total del disco y los
+# programas que más escriben. Muestra también el planificador del disco y qué
+# actualizaciones automáticas están activas.
+QUIETO='d=$(lsblk -no PKNAME "$(findmnt -no SOURCE / | sed "s/\[.*//")")
+echo "planificador: $(cat /sys/block/$d/queue/scheduler) (rotacional=$(cat /sys/block/$d/queue/rotational))"
+for u in apt-daily.timer apt-daily-upgrade.timer unattended-upgrades.service packagekit.service fwupd-refresh.timer man-db.timer; do
+    printf "%s=%s " "$u" "$(systemctl is-enabled "$u" 2>/dev/null || echo no)"
+done; echo
+grep -hs "APT::Periodic" /etc/apt/apt.conf.d/* | tr "\n" " "; echo
+foto() { for p in /proc/[0-9]*; do
+    w=$(awk "/^write_bytes/{print \$2}" "$p/io" 2>/dev/null) || continue
+    echo "${p#/proc/} $(cat "$p/comm" 2>/dev/null | tr " " "_") ${w:-0}"
+done; }
+foto > /tmp/io0
+set -- $(cat /sys/block/$d/stat); l0=$3; e0=$7
+sleep 300
+foto > /tmp/io1
+set -- $(cat /sys/block/$d/stat)
+echo "en 5 minutos sin tocar nada: leyó $(( ($3 - l0) / 2048 )) MB y escribió $(( ($7 - e0) / 2048 )) MB"
+echo "programas que más escribieron:"
+awk "NR==FNR{a[\$1]=\$3;next} {x=\$3-((\$1 in a)?a[\$1]:0); if (x>=1048576) printf \"  %s %d MB\n\", \$2, x/1048576}" /tmp/io0 /tmp/io1 | sort -k2 -nr | head -n 10
+echo "servicios en marcha relacionados:"
+systemctl list-units --type=service --state=running --no-legend 2>/dev/null | grep -Ei "apt|packagekit|unattended|update|tracker|localsearch|flatpak|fwupd|snap" | sed "s/^/  /"
+echo fin'
+
 # medir_navegador <etiqueta> → deja T_NAV (segundos) y C_NAV (código; 99 = no hay).
 medir_navegador() {
     T_NAV=999; C_NAV=1
     local leidos="?" escritos="?"
-    if en_llevix "$NAVEGADOR" 320; then
+    if en_llevix "$NAVEGADOR" 400; then
         read -r T_NAV C_NAV leidos escritos <<<"$(salida)"
     fi
     if [[ "$C_NAV" == 99 ]]; then
@@ -151,6 +176,13 @@ if qemu_esperar_informe $((TIMEOUT * 2)) && qga_esperar 300; then
     info "llegó al escritorio en $((SECONDS - inicio)) s"
     qemu_captura "$DIR_PRUEBAS/usb-lento.png"
 
+    echo; echo "0. Qué se escribe solo, sin tocar nada (5 minutos)"
+    if en_llevix "$QUIETO" 420; then
+        sed 's/^/  /' "$TRABAJO/salida.txt"
+    else
+        info "no se pudo medir"; sed 's/^/          /' "$TRABAJO/salida.txt"
+    fi
+
     echo; echo "1. Abrir el navegador por primera vez"
     medir_navegador "USB lento"
     if [[ "$C_NAV" == 99 ]]; then
@@ -179,6 +211,19 @@ if qemu_esperar_informe $((TIMEOUT * 2)) && qga_esperar 300; then
         falla "con escritura de fondo el navegador tardó ${T_NAV} s o falló (código $C_NAV)"
     fi
     en_llevix "$CARGA_PARAR" 900 || info "limpiar la carga tardó demasiado"
+
+    echo; echo "3. Lo mismo con el planificador BFQ (da prioridad a lo que se abre), para comparar"
+    if en_llevix 'd=$(lsblk -no PKNAME "$(findmnt -no SOURCE / | sed "s/\[.*//")"); echo bfq > /sys/block/$d/queue/scheduler && cat /sys/block/$d/queue/scheduler'; then
+        info "planificador: $(salida)"
+        en_llevix "$CARGA_INICIAR" 60 || true
+        T_GUARDAR=600
+        if en_llevix "$GUARDAR" 620; then T_GUARDAR="$(salida)"; fi
+        info "con BFQ: guardar un archivo pequeño tardó ${T_GUARDAR} s"
+        medir_navegador "con BFQ y escritura de fondo"
+        en_llevix "$CARGA_PARAR" 900 || info "limpiar la carga tardó demasiado"
+    else
+        info "no se pudo poner BFQ: $(salida)"
+    fi
 else
     falla "con el disco lento no llegó al escritorio"
     tail -n 40 "$QEMU_SERIE" || true
