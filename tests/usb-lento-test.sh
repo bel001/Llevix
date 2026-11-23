@@ -8,7 +8,9 @@
 #   1. Cuánto tarda en abrir el navegador por primera vez (crea su perfil), cuánto lee
 #      y cuánto escribe. También a velocidad normal, para comparar.
 #   2. Mientras otro programa escribe un archivo grande: cuánto tarda en guardarse un
-#      archivo pequeño y cuánto tarda en abrir el navegador.
+#      archivo pequeño y cuánto tarda en abrir el navegador (solo para comparar).
+#   3. Lo mismo con la escritura en prioridad de disco baja, como quedan las
+#      actualizaciones en Llevix: el navegador debe abrir.
 #
 # No necesita root. Trabaja sobre una copia de la imagen.
 #
@@ -193,7 +195,9 @@ if qemu_esperar_informe $((TIMEOUT * 2)) && qga_esperar 300; then
         falla "el navegador tardó $T_NAV s o falló (código $C_NAV; límite $MAX_NAVEGADOR s)"
     fi
 
-    echo; echo "2. Con otro programa escribiendo un archivo grande"
+    echo; echo "2. Con otro programa escribiendo un archivo grande (prioridad normal)"
+    # Como copiar un archivo enorme al USB: en una memoria de 3 MB/s eso ocupa todo el
+    # disco y el navegador espera. Es un límite de la memoria; se mide solo para comparar.
     T_GUARDAR=600
     en_llevix "$CARGA_INICIAR" 60 || true
     if en_llevix "$GUARDAR" 620; then T_GUARDAR="$(salida)"; fi
@@ -202,28 +206,38 @@ if qemu_esperar_informe $((TIMEOUT * 2)) && qga_esperar 300; then
     else
         falla "guardar un archivo tardó ${T_GUARDAR} s (límite $MAX_GUARDAR s)"
     fi
-    medir_navegador "USB lento con escritura de fondo"
+    medir_navegador "escritura de fondo con prioridad normal"
+    en_llevix "$CARGA_PARAR" 900 || info "limpiar la carga tardó demasiado"
+
+    echo; echo "3. La misma escritura con prioridad de disco baja (como quedan las actualizaciones)"
+    if en_llevix 'systemctl show -p IOWeight -p IOSchedulingClass apt-daily.service packagekit.service | tr "\n" " "'; then
+        if grep -q "IOWeight=1 " "$TRABAJO/salida.txt" && grep -Eq "IOSchedulingClass=(3|idle)" "$TRABAJO/salida.txt"; then
+            ok "las actualizaciones tienen prioridad de disco baja ($(salida))"
+        else
+            falla "las actualizaciones no tienen prioridad de disco baja ($(salida))"
+        fi
+    fi
+    if en_llevix 'd=$(lsblk -no PKNAME "$(findmnt -no SOURCE / | sed "s/\[.*//")"); cat /sys/block/$d/queue/scheduler' \
+        && grep -q "\[bfq\]" "$TRABAJO/salida.txt"; then
+        ok "el disco USB usa el planificador bfq"
+    else
+        falla "el disco USB no usa bfq ($(salida))"
+    fi
+    en_llevix 'systemd-run --quiet --unit=llevix-carga -p IOWeight=1 -p IOSchedulingClass=idle -p Nice=19 \
+        sh -c "head -c 1536M /dev/urandom > /home/'"$USUARIO"'/grande.bin"; sleep 20' 60 || true
+    medir_navegador "escritura de fondo con prioridad baja"
     if [[ "$C_NAV" == 99 ]]; then
         :
     elif [[ "$C_NAV" == 0 ]] && (( T_NAV <= MAX_NAVEGADOR_CARGA )); then
-        ok "el navegador abre aunque se esté escribiendo: ${T_NAV} s (límite $MAX_NAVEGADOR_CARGA s)"
+        ok "con una actualización de fondo el navegador abre: ${T_NAV} s (límite $MAX_NAVEGADOR_CARGA s)"
     else
-        falla "con escritura de fondo el navegador tardó ${T_NAV} s o falló (código $C_NAV)"
+        falla "con una actualización de fondo el navegador tardó ${T_NAV} s o falló (código $C_NAV)"
     fi
-    en_llevix "$CARGA_PARAR" 900 || info "limpiar la carga tardó demasiado"
-
-    echo; echo "3. Lo mismo con el planificador BFQ (da prioridad a lo que se abre), para comparar"
-    if en_llevix 'd=$(lsblk -no PKNAME "$(findmnt -no SOURCE / | sed "s/\[.*//")"); echo bfq > /sys/block/$d/queue/scheduler && cat /sys/block/$d/queue/scheduler'; then
-        info "planificador: $(salida)"
-        en_llevix "$CARGA_INICIAR" 60 || true
-        T_GUARDAR=600
-        if en_llevix "$GUARDAR" 620; then T_GUARDAR="$(salida)"; fi
-        info "con BFQ: guardar un archivo pequeño tardó ${T_GUARDAR} s"
-        medir_navegador "con BFQ y escritura de fondo"
-        en_llevix "$CARGA_PARAR" 900 || info "limpiar la carga tardó demasiado"
-    else
-        info "no se pudo poner BFQ: $(salida)"
+    if en_llevix 'echo $(( $(stat -c %s /home/'"$USUARIO"'/grande.bin 2>/dev/null || echo 0) / 1048576 ))'; then
+        info "mientras tanto, la tarea de fondo siguió y escribió $(salida) MB"
     fi
+    en_llevix 'systemctl stop llevix-carga 2>/dev/null; rm -f /home/'"$USUARIO"'/grande.bin; sync' 900 \
+        || info "limpiar la carga tardó demasiado"
 else
     falla "con el disco lento no llegó al escritorio"
     tail -n 40 "$QEMU_SERIE" || true
