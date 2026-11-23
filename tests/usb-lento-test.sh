@@ -24,8 +24,10 @@ DIR_PRUEBAS="${LLEVIX_TEST_DIR:-$DIR_REPO/out/pruebas}"
 TIMEOUT="${LLEVIX_TEST_TIMEOUT:-900}"
 MODO="${LLEVIX_TEST_MODO:-uefi-sb}"
 USUARIO="prueba"
-# Velocidad de una memoria USB barata (bytes por segundo y operaciones de escritura).
-LENTO="throttling.bps-read=20971520,throttling.bps-write=3145728,throttling.iops-write=60"
+# Velocidad de una memoria USB barata: lectura 20 MB/s, escritura 3 MB/s y, como en una
+# memoria real, lecturas y escrituras se reparten el mismo canal (100 operaciones de
+# 64 KiB por segundo entre las dos).
+LENTO="throttling.bps-read=20971520,throttling.bps-write=3145728,throttling.iops-total=100,throttling.iops-size=65536"
 # Límites (segundos) con el ajuste de Llevix activo.
 MAX_NAVEGADOR=240
 MAX_GUARDAR=30
@@ -59,15 +61,23 @@ en_llevix() {
 salida() { tail -n 1 "$TRABAJO/salida.txt"; }
 
 # Abre el navegador sin pantalla, con un perfil nuevo, y escribe "<segundos> <código>".
-NAVEGADOR='ff=""
+# Firefox en casi todas las variantes; Brave en Zorin OS.
+# Sin "sync" antes de vaciar la caché: con la carga de fondo esperaría a toda la carga.
+NAVEGADOR='h=/home/'"$USUARIO"'
+cmd=""
 for b in /usr/lib/firefox/firefox /usr/lib/firefox-esr/firefox-esr /usr/bin/firefox; do
-    [ -x "$b" ] && { ff="$b"; break; }
+    [ -x "$b" ] && { cmd="MOZ_HEADLESS=1 $b --headless --screenshot /tmp/llevix-nav.png about:blank"; break; }
 done
-[ -n "$ff" ] || { echo "0 99"; exit 0; }
-rm -rf /home/'"$USUARIO"'/.mozilla /home/'"$USUARIO"'/.config/mozilla /home/'"$USUARIO"'/.cache/mozilla
-sync; echo 3 > /proc/sys/vm/drop_caches
+if [ -z "$cmd" ]; then
+    for b in /usr/bin/brave-browser /usr/bin/chromium /usr/bin/google-chrome; do
+        [ -x "$b" ] && { cmd="$b --headless=new --no-sandbox --disable-gpu --no-first-run --screenshot=/tmp/llevix-nav.png about:blank"; break; }
+    done
+fi
+[ -n "$cmd" ] || { echo "0 99"; exit 0; }
+rm -rf "$h/.mozilla" "$h/.config/mozilla" "$h/.cache/mozilla" "$h/.config/BraveSoftware" "$h/.cache/BraveSoftware" "$h/.config/chromium" "$h/.cache/chromium"
+echo 3 > /proc/sys/vm/drop_caches
 s=$(date +%s)
-su - '"$USUARIO"' -c "MOZ_HEADLESS=1 timeout 280 $ff --headless --screenshot /tmp/llevix-ff.png about:blank" >/dev/null 2>&1
+su - '"$USUARIO"' -c "timeout 280 $cmd" >/dev/null 2>&1
 r=$?
 echo "$(( $(date +%s) - s )) $r"'
 
@@ -81,7 +91,9 @@ echo $(( $(date +%s) - s ))'
 # Otro programa escribe 1,5 GB (datos aleatorios: la compresión no los achica).
 CARGA_INICIAR='setsid nohup su - '"$USUARIO"' -c "head -c 1536M /dev/urandom > /home/'"$USUARIO"'/grande.bin" >/dev/null 2>&1 < /dev/null &
 sleep 20'
-CARGA_PARAR='pkill -f "head -c 1536M" || true
+# "pkill -x head": por nombre exacto (con -f se mataría a sí mismo, porque este mismo
+# comando contiene el texto buscado).
+CARGA_PARAR='pkill -x head || true
 sleep 2
 rm -f /home/'"$USUARIO"'/grande.bin /home/'"$USUARIO"'/pequeno.txt
 sync'
@@ -142,7 +154,7 @@ if qemu_esperar_informe $((TIMEOUT * 2)) && qga_esperar 300; then
     t=999; c=1
     if en_llevix "$NAVEGADOR" 320; then read -r t c <<<"$(salida)"; fi
     if [[ "$c" == 99 ]]; then
-        info "no hay Firefox en esta variante: se omite la medición del navegador"
+        info "no se encontró el navegador: se omite la medición"
     elif [[ "$c" == 0 ]] && (( t <= MAX_NAVEGADOR )); then
         ok "el navegador abrió en $t s (límite $MAX_NAVEGADOR s)"
     else
