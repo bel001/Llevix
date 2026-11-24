@@ -5,6 +5,8 @@
 #
 # QEMU limita la velocidad del disco virtual a la de una memoria USB barata
 # (lectura ~20 MB/s, escritura ~3 MB/s). Con esa velocidad se mide:
+#   0. Que la imagen trae las listas de paquetes, y cuánto escribe la primera
+#      actualización con ellas y sin ellas (como era antes).
 #   1. Cuánto tarda en abrir el navegador por primera vez (crea su perfil), cuánto lee
 #      y cuánto escribe. También a velocidad normal, para comparar.
 #   2. Mientras otro programa escribe un archivo grande: cuánto tarda en guardarse un
@@ -183,6 +185,32 @@ if qemu_esperar_informe $((TIMEOUT * 2)) && qga_esperar 300; then
         sed 's/^/  /' "$TRABAJO/salida.txt"
     else
         info "no se pudo medir"; sed 's/^/          /' "$TRABAJO/salida.txt"
+    fi
+
+    echo; echo "Listas de paquetes y primera actualización (como al conectarse al Wi-Fi)"
+    if en_llevix 'ls /var/lib/apt/lists | grep -c "_Packages"'; then
+        n="$(salida)"
+        if (( n > 0 )); then ok "la imagen trae las listas de paquetes ($n)"; else falla "la imagen no trae las listas de paquetes"; fi
+    else
+        falla "la imagen no trae las listas de paquetes"
+    fi
+    # "<segundos> <código> <MB escritos>" de un apt-get update en el USB lento.
+    ACTUALIZAR='d=$(lsblk -no PKNAME "$(findmnt -no SOURCE / | sed "s/\[.*//")")
+set -- $(cat /sys/block/$d/stat); e0=$7
+s=$(date +%s)
+timeout 900 apt-get -o Acquire::Retries=3 update -q > /tmp/llevix-apt.log 2>&1
+r=$?
+sync
+t=$(( $(date +%s) - s ))
+set -- $(cat /sys/block/$d/stat)
+echo "$t $r $(( ($7 - e0) / 2048 ))"'
+    if en_llevix "$ACTUALIZAR" 960; then
+        read -r t r mb <<<"$(salida)"
+        info "primera actualización con las listas incluidas: $t s, escribió $mb MB (código $r)"
+    fi
+    if en_llevix "rm -rf /var/lib/apt/lists/* && $ACTUALIZAR" 960; then
+        read -r t r mb <<<"$(salida)"
+        info "sin listas (como era antes): $t s, escribió $mb MB (código $r)"
     fi
 
     echo; echo "1. Abrir el navegador por primera vez"

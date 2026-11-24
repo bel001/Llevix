@@ -1,0 +1,4 @@
+// Llevix: las listas de paquetes se guardan comprimidas (como se descargan), para
+// escribir mucho menos en la memoria USB en cada actualización.
+Acquire::GzipIndexes "true";
+Acquire::CompressionTypes::Order { "gz"; "xz"; };
