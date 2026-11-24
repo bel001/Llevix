@@ -5,8 +5,3 @@ ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="sd[a-z]
 ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="sd[a-z]*|mmcblk[0-9]*", ATTR{queue/rotational}=="0", ATTR{queue/scheduler}="mq-deadline"
 # NVMe: sin planificador (el propio disco ordena las peticiones).
 ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="nvme[0-9]*n[0-9]*", ATTR{queue/scheduler}="none"
-# Discos conectados por USB (memorias, discos y SSD externos): siempre bfq, aunque se
-# declaren no giratorios. bfq da prioridad a lo que el usuario abre sobre las tareas de
-# fondo (las actualizaciones tienen prioridad de disco baja: ver
-# /etc/systemd/system/*.service.d/llevix-prioridad-baja.conf).
-ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="sd[a-z]*", SUBSYSTEMS=="usb", ATTR{queue/scheduler}="bfq"

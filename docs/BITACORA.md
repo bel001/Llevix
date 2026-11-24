@@ -314,8 +314,17 @@ navegador y "la configuración de APT está corrupta".
   y 3 MB/s de escritura (con lecturas y escrituras compartiendo el canal), mide el
   navegador (tiempo, MB leídos y escritos) y el guardado de un archivo mientras otro
   programa escribe 1,5 GB.
-- **Hallazgo:** Zorin trae Brave, no Firefox. En el USB lento Brave tardó 215 s en abrir
-  la primera vez (Firefox ~20 s en las demás) y con escritura de fondo no llegó a abrir.
+- **Resultados (11 variantes, USB simulado de 3 MB/s):** sin nada más escribiendo, el
+  navegador abre en 41–59 s la primera vez (2–6 s a velocidad normal; lee 200–400 MB).
+  Zorin trae Brave y se comporta igual que Firefox. Quieto, el sistema escribe solo
+  3–5 MB en 5 minutos. Con una escritura grande de fondo, el navegador no abre en 5
+  minutos en ninguna variante.
+- **Probado y descartado (no mejoró nada medible):** límite de escrituras pendientes,
+  planificador bfq (ya estaba activo) y bajar la prioridad de disco de las
+  actualizaciones (IOWeight=1, clase idle). La imagen queda igual que antes.
+- **Conclusión:** el límite es la memoria. Llevix no puede hacer rápida una memoria de
+  pocos MB/s; el creador ahora la detecta y avisa (o se detiene si es falsa).
+  `tests/usb-lento-test.sh` queda como medición en cada construcción.
 - **Creador:** `creator/nucleo/src/prueba_disco.rs` prueba el disco antes de escribir:
   bloques con datos únicos en múltiplos de una potencia de dos por todo el disco (si una
   memoria falsa "da la vuelta", un bloque pisa a otro) y el final del disco; si no se
