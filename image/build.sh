@@ -181,8 +181,17 @@ mount "$P_ESP" "$ROOT/boot/efi"
 paso "debootstrap $SUITE (esto tarda unos minutos)"
 LLAVERO=()
 [[ "$BASE" == "debian" ]] && LLAVERO=(--keyring=/usr/share/keyrings/debian-archive-keyring.gpg)
-debootstrap --arch=amd64 --components="$COMPONENTES" "${LLAVERO[@]}" \
-    "$SUITE" "$ROOT" "$MIRROR"
+# Hasta 3 intentos: a veces el mirror corta la descarga de un paquete ("Couldn't
+# download packages"). El reintento aprovecha lo ya descargado en $ROOT.
+for intento in 1 2 3; do
+    if debootstrap --arch=amd64 --components="$COMPONENTES" "${LLAVERO[@]}" \
+        "$SUITE" "$ROOT" "$MIRROR"; then
+        break
+    fi
+    (( intento < 3 )) || error "debootstrap falló 3 veces"
+    echo "debootstrap falló (intento $intento); se reintenta en 30 s" >&2
+    sleep 30
+done
 
 mkdir -p "$ROOT/.snapshots"
 mount --bind /dev "$ROOT/dev"
