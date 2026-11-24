@@ -337,3 +337,5 @@ navegador y "la configuración de APT está corrupta".
   memoria falsa "da la vuelta", un bloque pisa a otro) y el final del disco; si no se
   leen de vuelta, se detiene. Si escribe a menos de 5 MB/s o hace menos de 50 escrituras
   de 4 KiB por segundo, avisa que es lenta. Todo lo de prueba queda en cero.
+- **CI más resistente:** `debootstrap` se reintenta hasta 3 veces (el mirror de Ubuntu
+  cortaba descargas) y la ISO de Zorin se descarga por HTTP/1.1 continuando si se corta.
