@@ -321,10 +321,17 @@ navegador y "la configuración de APT está corrupta".
   minutos en ninguna variante.
 - **Probado y descartado (no mejoró nada medible):** límite de escrituras pendientes,
   planificador bfq (ya estaba activo) y bajar la prioridad de disco de las
-  actualizaciones (IOWeight=1, clase idle). La imagen queda igual que antes.
+  actualizaciones (IOWeight=1, clase idle): se quitaron.
 - **Conclusión:** el límite es la memoria. Llevix no puede hacer rápida una memoria de
   pocos MB/s; el creador ahora la detecta y avisa (o se detiene si es falsa).
   `tests/usb-lento-test.sh` queda como medición en cada construcción.
+- **Listas de paquetes (arreglo real):** las imágenes se publicaban con
+  `/var/lib/apt/lists` vacío. El sistema avisaba "información de software desactualizada"
+  y, al conectarse a internet, descargaba y escribía todas las listas de golpe (la
+  "escritura grande de fondo" que no deja abrir nada en un USB lento). Ahora la imagen
+  trae las listas del día de la construcción y apt las guarda comprimidas
+  (`overlay/etc/apt/apt.conf.d/80llevix-indices`). Primera actualización en el USB de
+  3 MB/s: Ubuntu 308 → 176 MB escritos, Mint 257 → 97 MB, Debian Xfce 96 → 42 MB.
 - **Creador:** `creator/nucleo/src/prueba_disco.rs` prueba el disco antes de escribir:
   bloques con datos únicos en múltiplos de una potencia de dos por todo el disco (si una
   memoria falsa "da la vuelta", un bloque pisa a otro) y el final del disco; si no se
