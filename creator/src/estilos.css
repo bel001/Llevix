@@ -232,3 +232,10 @@ kbd { font-family: inherit; font-weight: 600; font-size: 0.8rem; padding: 1px 6p
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Lista de ISOs compatibles ("Trae tu ISO") */
+.compatibles { margin-top: 14px; border: 1px solid var(--borde); border-radius: var(--radio); background: var(--superficie); font-size: 0.89rem; }
+.compatibles summary { cursor: pointer; padding: 11px 14px; font-weight: 600; color: var(--texto); }
+.compatibles summary:hover { color: var(--marca); }
+.compatibles-cuerpo { padding: 0 14px 12px; line-height: 1.5; color: var(--texto); }
+.compatibles-cuerpo p { margin: 6px 0 0; }

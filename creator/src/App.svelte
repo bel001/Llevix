@@ -374,6 +374,17 @@
             {#if errorIso}
               <div class="aviso peligro" in:fade><Icono nombre="alerta" /><span>{errorIso}</span></div>
             {/if}
+            {#if instalador && filtro === "todas"}
+              <details class="compatibles" open={!!errorIso}>
+                <summary>¿Qué ISOs puedo usar con «Usar mi propia ISO»?</summary>
+                <div class="compatibles-cuerpo">
+                  <p><strong>Probadas:</strong> Ubuntu 24.04 o posterior, Kubuntu, Linux Mint 22 (Cinnamon, MATE y Xfce) y Zorin OS 18.</p>
+                  <p><strong>Deberían funcionar</strong> (misma familia, aún sin probar): Xubuntu, Lubuntu, Ubuntu MATE, Ubuntu Budgie y elementary OS.</p>
+                  <p><strong>Todavía no:</strong> Debian, Fedora, Pop!_OS, Arch, Manjaro y openSUSE. Para Debian elige una del catálogo.</p>
+                  <p class="nota">La ISO debe ser de 64 bits y pesar 8 GB o menos.</p>
+                </div>
+              </details>
+            {/if}
           {/if}
         {:else if paso === 2}
           <div class="encabezado-paso">
