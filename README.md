@@ -77,9 +77,15 @@ Y así se ve al arrancar desde el USB, con la cuenta que creaste, en español:
 Windows puede mostrar «Windows protegió tu PC» porque el instalador todavía no está firmado:
 pulsa «Más información» → «Ejecutar de todas formas».
 
-**¿Ya tienes una ISO?** En el paso 1 elige **«Usar mi propia ISO»**. Llevix acepta ISOs de la
-familia Ubuntu (Ubuntu y sus sabores, Linux Mint, Zorin OS, elementary OS…) de hasta 8 GB y
-las instala en el disco la primera vez que arranca.
+**¿Ya tienes una ISO?** En el paso 1 elige **«Usar mi propia ISO»**. Llevix la instala en el
+disco la primera vez que arranca. Por ahora acepta ISOs de 64 bits, de hasta 8 GB, de la
+familia Ubuntu:
+
+- **Probadas:** Ubuntu 24.04 o posterior, Kubuntu, Linux Mint 22 (Cinnamon, MATE y Xfce) y
+  Zorin OS 18.
+- **Deberían funcionar** (misma familia, aún sin probar): Xubuntu, Lubuntu, Ubuntu MATE,
+  Ubuntu Budgie y elementary OS.
+- **Todavía no:** Debian, Fedora, Pop!_OS, Arch, Manjaro y openSUSE.
 
 **¿Sin Windows?** Descarga la imagen `.img.zst` de tu variante (y sus partes `.001`, `.002`…
 si las tiene), únelas, descomprímelas y escríbelas con balenaEtcher o `dd`. Sin el creador no

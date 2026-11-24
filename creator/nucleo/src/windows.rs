@@ -601,6 +601,11 @@ mod prueba_vhd {
             assert_eq!(esp::leer_config(&mut destino).unwrap(), config);
         } else {
             destino.borrar_tablas().unwrap();
+            // Igual que el creador: primero la prueba del disco (escribe por todo el disco,
+            // también donde estaba la partición montada de antes).
+            let tamano = destino.tamano;
+            let prueba = crate::prueba_disco::probar(&mut destino, tamano, &cancelar, &mut |_, _| {}).unwrap();
+            println!("prueba del disco: {:.1} MB/s, {:.0} escrituras pequeñas por segundo", prueba.mb_s, prueba.iops);
             crear::escribir_todo(Cursor::new(zst), &bmap, &mut destino, None, config, &cancelar, &mut |_, _, _| {})
                 .unwrap();
         }

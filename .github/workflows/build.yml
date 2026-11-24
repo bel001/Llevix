@@ -102,6 +102,12 @@ jobs:
           LLEVIX_TEST_DIR: ${{ env.SALIDA }}/pruebas
         run: ./tests/resistencia-test.sh "$SALIDA/llevix-${{ matrix.variante }}.img"
 
+      - name: Probar con un USB lento (navegador y escritura sin congelarse)
+        if: ${{ !cancelled() && steps.construir.outcome == 'success' }}
+        env:
+          LLEVIX_TEST_DIR: ${{ env.SALIDA }}/pruebas
+        run: ./tests/usb-lento-test.sh "$SALIDA/llevix-${{ matrix.variante }}.img"
+
       - name: Mapa de bloques (.bmap) y tamaño
         run: |
           cd "$SALIDA"
@@ -206,7 +212,13 @@ jobs:
           zstd -d --rm --sparse llevix-instalador.img.zst
           archivo="$(basename "$ISO_URL")"
           curl -fsSL --retry 5 --retry-all-errors --retry-delay 20 -o sumas.txt "$ISO_SUMAS"
-          curl -fsSL --retry 5 --retry-all-errors --retry-delay 20 -o "$archivo" "$ISO_URL"
+          # HTTP/1.1 y continuar donde quedó: el servidor de Zorin a veces corta HTTP/2.
+          for intento in 1 2 3 4 5; do
+            curl -fsSL --http1.1 -C - --retry 5 --retry-all-errors --retry-delay 20               -o "$archivo" "$ISO_URL" && break
+            [ "$intento" -lt 5 ] || exit 1
+            echo "La descarga de la ISO se cortó (intento $intento); se continúa en 30 s"
+            sleep 30
+          done
           grep "[ *]$archivo\$" sumas.txt | sed 's/ \*/  /' | sha256sum -c -
           echo "ISO=$SALIDA/$archivo" >> "$GITHUB_ENV"
 
@@ -243,6 +255,12 @@ jobs:
         env:
           LLEVIX_TEST_DIR: ${{ env.SALIDA }}/pruebas
         run: ./tests/resistencia-test.sh "$SALIDA/llevix-${{ matrix.variante }}.img"
+
+      - name: Probar con un USB lento (navegador y escritura sin congelarse)
+        if: ${{ !cancelled() && steps.construir.outcome == 'success' }}
+        env:
+          LLEVIX_TEST_DIR: ${{ env.SALIDA }}/pruebas
+        run: ./tests/usb-lento-test.sh "$SALIDA/llevix-${{ matrix.variante }}.img"
 
       - name: Mapa de bloques, tamaño y compresión
         run: |

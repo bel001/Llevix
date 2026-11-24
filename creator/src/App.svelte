@@ -53,18 +53,20 @@
   let hechos = $state(0);
   let total = $state(0);
   let errorFinal = $state("");
+  let avisoDisco = $state("");
 
   const ETAPAS = {
     descarga: "Descargando la imagen",
     verificando_descarga: "Comprobando la descarga",
     preparando: "Preparando el disco",
+    prueba_disco: "Probando el disco",
     escritura: "Escribiendo en el disco",
     verificacion: "Comprobando lo escrito",
     iso: "Guardando tu ISO en el disco",
     config: "Guardando tu cuenta",
   };
   const ordenEtapas = $derived(
-    ["descarga", "verificando_descarga", "preparando", "escritura", "verificacion", ...(isoRuta ? ["iso"] : []), "config"],
+    ["descarga", "verificando_descarga", "preparando", "prueba_disco", "escritura", "verificacion", ...(isoRuta ? ["iso"] : []), "config"],
   );
   const indiceEtapa = $derived(ordenEtapas.indexOf(etapa));
 
@@ -113,7 +115,11 @@
       hechos = e.payload.hechos;
       total = e.payload.total;
     }).then((f) => quitar.push(f));
+    listen("llevix://aviso", (e) => {
+      avisoDisco = e.payload;
+    }).then((f) => quitar.push(f));
     listen("llevix://fin", (e) => {
+      if (e.payload.aviso) avisoDisco = e.payload.aviso;
       if (e.payload.ok) {
         paso = 5;
       } else {
@@ -234,6 +240,7 @@
   async function empezar() {
     confirmando = false;
     errorFinal = "";
+    avisoDisco = "";
     etapa = "descarga";
     hechos = 0;
     total = 0;
@@ -366,6 +373,17 @@
             </div>
             {#if errorIso}
               <div class="aviso peligro" in:fade><Icono nombre="alerta" /><span>{errorIso}</span></div>
+            {/if}
+            {#if instalador && filtro === "todas"}
+              <details class="compatibles" open={!!errorIso}>
+                <summary>¿Qué ISOs puedo usar con «Usar mi propia ISO»?</summary>
+                <div class="compatibles-cuerpo">
+                  <p><strong>Probadas:</strong> Ubuntu 24.04 o posterior, Kubuntu, Linux Mint 22 (Cinnamon, MATE y Xfce) y Zorin OS 18.</p>
+                  <p><strong>Deberían funcionar</strong> (misma familia, aún sin probar): Xubuntu, Lubuntu, Ubuntu MATE, Ubuntu Budgie y elementary OS.</p>
+                  <p><strong>Todavía no:</strong> Debian, Fedora, Pop!_OS, Arch, Manjaro y openSUSE. Para Debian elige una del catálogo.</p>
+                  <p class="nota">La ISO debe ser de 64 bits y pesar 8 GB o menos.</p>
+                </div>
+              </details>
             {/if}
           {/if}
         {:else if paso === 2}
@@ -535,6 +553,7 @@
                   </li>
                 {/each}
               </ol>
+              {#if avisoDisco}<div class="aviso" in:fade><Icono nombre="alerta" /><span>{avisoDisco}</span></div>{/if}
               <p class="nota"><Icono nombre="alerta" tam={14} /> No desconectes el disco hasta que termine.</p>
             {/if}
           </div>
@@ -543,6 +562,9 @@
             <div class="circulo-estado ok-circulo"><Icono nombre="check" tam={44} /></div>
             <h2>¡Tu Llevix está listo!</h2>
             <p>Está en <strong>{nombreDisco(discoElegido)}</strong>. Ya puedes desconectarlo.</p>
+            {#if avisoDisco}
+              <div class="aviso"><Icono nombre="alerta" /><span>{avisoDisco}</span></div>
+            {/if}
             {#if isoInfo}
               <div class="aviso info">
                 <Icono nombre="reloj" />

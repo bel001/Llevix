@@ -4,6 +4,14 @@ Claude Code escribe aquí lo que necesita de ti. Resuélvelo, marca la casilla y
 vuelve a pegar el prompt de AUTOPILOTO.md para que continúe.
 
 ## Ahora
+- [ ] **Revisar la memoria USB de Temu** (Zorin se quedaba cargando).
+  1. Descarga **ValiDrive** (grc.com/validrive.htm) o **H2testw** y prueba la memoria
+     (borra lo que tenga). Si dice que la capacidad real es menor, la memoria es falsa.
+  2. Mide la velocidad con **CrystalDiskMark**: si la escritura **RND4K** da menos de
+     1 MB/s, Linux será muy lento en ella (con cualquier distro, no solo con Llevix).
+  3. Vuelve a probar Llevix en una memoria **USB 3 de marca** (Kingston, SanDisk, Samsung)
+     o en un **SSD externo**. Anota el resultado en `tests/hardware-matrix.md`.
+
 - [ ] Instalar lo que falta en tu PC (no bloquea: las pruebas corren en GitHub Actions).
   1. En PowerShell, para el creador: `winget install --id Rustlang.Rustup -e`
   2. En PowerShell, para WSL (te pedirá la contraseña de Ubuntu):

@@ -181,8 +181,17 @@ mount "$P_ESP" "$ROOT/boot/efi"
 paso "debootstrap $SUITE (esto tarda unos minutos)"
 LLAVERO=()
 [[ "$BASE" == "debian" ]] && LLAVERO=(--keyring=/usr/share/keyrings/debian-archive-keyring.gpg)
-debootstrap --arch=amd64 --components="$COMPONENTES" "${LLAVERO[@]}" \
-    "$SUITE" "$ROOT" "$MIRROR"
+# Hasta 3 intentos: a veces el mirror corta la descarga de un paquete ("Couldn't
+# download packages"). El reintento aprovecha lo ya descargado en $ROOT.
+for intento in 1 2 3; do
+    if debootstrap --arch=amd64 --components="$COMPONENTES" "${LLAVERO[@]}" \
+        "$SUITE" "$ROOT" "$MIRROR"; then
+        break
+    fi
+    (( intento < 3 )) || error "debootstrap falló 3 veces"
+    echo "debootstrap falló (intento $intento); se reintenta en 30 s" >&2
+    sleep 30
+done
 
 mkdir -p "$ROOT/.snapshots"
 mount --bind /dev "$ROOT/dev"
@@ -554,7 +563,16 @@ paso "Limpiando"
 escribir_fuentes "$MIRROR_PUBLICO" "$MIRROR_SEGURIDAD"
 rm -f "$ROOT/usr/sbin/policy-rc.d" "$ROOT/etc/apt/apt.conf.d/80llevix-reintentos"
 en_chroot "apt-get clean"
-rm -rf "$ROOT"/var/lib/apt/lists/* "$ROOT"/tmp/* "$ROOT"/var/tmp/*
+# Las listas de paquetes quedan en la imagen (comprimidas: overlay/etc/apt/apt.conf.d/
+# 80llevix-indices). Sin ellas, el sistema avisa que la información de software está
+# desactualizada y, al conectarse a internet, descarga y escribe todas de golpe: en una
+# memoria USB lenta eso no deja abrir nada durante minutos.
+rm -rf "$ROOT"/var/lib/apt/lists/*
+if ! en_chroot "apt-get -o Acquire::Retries=5 update -q"; then
+    echo "aviso: no se pudieron descargar las listas de paquetes; la imagen queda sin ellas" >&2
+    rm -rf "$ROOT"/var/lib/apt/lists/*
+fi
+rm -rf "$ROOT"/var/lib/apt/lists/partial/* "$ROOT"/var/lib/apt/lists/lock     "$ROOT"/var/cache/apt/*.bin "$ROOT"/tmp/* "$ROOT"/var/tmp/*
 # machine-id vacío: cada PC/arranque genera el suyo la primera vez.
 : > "$ROOT/etc/machine-id"
 rm -f "$ROOT/var/lib/dbus/machine-id"

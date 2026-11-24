@@ -301,3 +301,41 @@ navegador y "la configuración de APT está corrupta".
   está dañada». Quedaba en la caché una parte de v0.0.6 con el mismo nombre y tamaño; el
   creador la daba por descargada y fallaba la suma. Ahora el nombre de cada parte lleva el
   comienzo de su SHA256 y se borran las descargas de otras versiones.
+
+## Beta — USB lentos y memorias falsas (2026-11-23)
+
+- **Síntoma (beta, en vivo):** Zorin en una memoria USB barata, PC con 24 GB de RAM:
+  arranca y conecta el Wi-Fi, pero el navegador y la configuración se quedan cargando y
+  no se puede usar.
+- **Primera hipótesis (descartada):** limitar las escrituras pendientes de Linux
+  (`vm.dirty_bytes`). Medido en CI con un USB lento simulado, empeoró el guardado de
+  archivos (2–11 s contra 1–3 s sin el límite): se quitó.
+- **Prueba nueva:** `tests/usb-lento-test.sh` limita el disco de QEMU a 20 MB/s de lectura
+  y 3 MB/s de escritura (con lecturas y escrituras compartiendo el canal), mide el
+  navegador (tiempo, MB leídos y escritos) y el guardado de un archivo mientras otro
+  programa escribe 1,5 GB.
+- **Resultados (11 variantes, USB simulado de 3 MB/s):** sin nada más escribiendo, el
+  navegador abre en 41–59 s la primera vez (2–6 s a velocidad normal; lee 200–400 MB).
+  Zorin trae Brave y se comporta igual que Firefox. Quieto, el sistema escribe solo
+  3–5 MB en 5 minutos. Con una escritura grande de fondo, el navegador no abre en 5
+  minutos en ninguna variante.
+- **Probado y descartado (no mejoró nada medible):** límite de escrituras pendientes,
+  planificador bfq (ya estaba activo) y bajar la prioridad de disco de las
+  actualizaciones (IOWeight=1, clase idle): se quitaron.
+- **Conclusión:** el límite es la memoria. Llevix no puede hacer rápida una memoria de
+  pocos MB/s; el creador ahora la detecta y avisa (o se detiene si es falsa).
+  `tests/usb-lento-test.sh` queda como medición en cada construcción.
+- **Listas de paquetes (arreglo real):** las imágenes se publicaban con
+  `/var/lib/apt/lists` vacío. El sistema avisaba "información de software desactualizada"
+  y, al conectarse a internet, descargaba y escribía todas las listas de golpe (la
+  "escritura grande de fondo" que no deja abrir nada en un USB lento). Ahora la imagen
+  trae las listas del día de la construcción y apt las guarda comprimidas
+  (`overlay/etc/apt/apt.conf.d/80llevix-indices`). Primera actualización en el USB de
+  3 MB/s: Ubuntu 308 → 176 MB escritos, Mint 257 → 97 MB, Debian Xfce 96 → 42 MB.
+- **Creador:** `creator/nucleo/src/prueba_disco.rs` prueba el disco antes de escribir:
+  bloques con datos únicos en múltiplos de una potencia de dos por todo el disco (si una
+  memoria falsa "da la vuelta", un bloque pisa a otro) y el final del disco; si no se
+  leen de vuelta, se detiene. Si escribe a menos de 5 MB/s o hace menos de 50 escrituras
+  de 4 KiB por segundo, avisa que es lenta. Todo lo de prueba queda en cero.
+- **CI más resistente:** `debootstrap` se reintenta hasta 3 veces (el mirror de Ubuntu
+  cortaba descargas) y la ISO de Zorin se descarga por HTTP/1.1 continuando si se corta.

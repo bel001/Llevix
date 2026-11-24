@@ -106,6 +106,9 @@ Idioma del proyecto: español (código comentado, mensajes al usuario, documenta
   CI con el núcleo del creador). Pendiente humano: probarlo en un USB real (PENDIENTES.md).
 - Fase 9: completa en lo automático (11 variantes verdes: + Debian 13 GNOME/KDE/Xfce y
   Zorin OS 18 desde su ISO oficial; creador con interfaz nueva). Licencia MIT.
+- Beta (USB lentos): imágenes con listas de paquetes incluidas y comprimidas; el creador
+  prueba el disco antes de escribir (memorias falsas o muy lentas). tests/usb-lento-test.sh
+  mide el sistema con un USB simulado de 3 MB/s. Versión de prueba v0.0.9-test.
 - Siguiente paso: pruebas humanas de la beta (PENDIENTES.md) y, con ellas, v0.1.0-beta.1.
   Después: elementary OS (fuente estable), Fedora y Secure Boot con el certificado 2023.
 - Herramientas locales: shellcheck con Docker

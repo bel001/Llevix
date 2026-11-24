@@ -83,11 +83,11 @@ qemu_iniciar() {
     case "${LLEVIX_TEST_BUS:-usb}" in
         usb)
             args+=(-device qemu-xhci,id=xhci
-                   -drive "if=none,id=disco,format=$formato,file=$disco"
+                   -drive "if=none,id=disco,format=$formato,file=$disco${LLEVIX_TEST_DISCO_OPC:+,$LLEVIX_TEST_DISCO_OPC}"
                    -device usb-storage,bus=xhci.0,drive=disco,bootindex=1)
             ;;
         virtio)
-            args+=(-drive "if=virtio,format=$formato,file=$disco")
+            args+=(-drive "if=virtio,format=$formato,file=$disco${LLEVIX_TEST_DISCO_OPC:+,$LLEVIX_TEST_DISCO_OPC}")
             ;;
         *) echo "bus desconocido: $LLEVIX_TEST_BUS" >&2; return 2 ;;
     esac
