@@ -56,6 +56,9 @@ pub struct Disco {
     /// Cantidad de particiones (algunas pueden no tener letra en Windows).
     pub particiones: u32,
     pub volumenes: Vec<Volumen>,
+    /// El tamaño que informa es típico de una memoria falsa (ver
+    /// `prueba_disco::capacidad_sospechosa`): el creador sugiere la prueba completa.
+    pub sospechoso: bool,
 }
 
 impl Disco {
@@ -145,6 +148,7 @@ mod pruebas {
             es_arranque: false,
             particiones: 0,
             volumenes: vec![],
+            sospechoso: false,
         }
     }
 
