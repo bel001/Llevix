@@ -114,8 +114,9 @@ Idioma del proyecto: español (código comentado, mensajes al usuario, documenta
 - Fase 10 planificada (sin empezar): "Trae tu ISO" por familias técnicas (casper, Debian
   live, Fedora/dracut, Arch con decisión pendiente), siempre instalando, nunca en vivo
   (docs/planes/familias-iso.md, prompts/fase-10-familias-iso.md).
-- Beta, sin empezar: prueba completa opcional de memorias falsas en el creador (las que
-  "van llenando" pasan la prueba rápida; caso real: memoria de Temu de 100 000 MiB).
+- Beta: prueba completa opcional de memorias falsas en el creador (las que "van llenando"
+  pasan la prueba rápida; caso real: memoria de Temu de 100 000 MiB). Tamaños sospechosos
+  la dejan marcada.
 - Herramientas locales: shellcheck con Docker
   (`MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W)":/mnt -w /mnt koalaman/shellcheck:stable -x <archivos>`).
 

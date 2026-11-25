@@ -302,6 +302,29 @@ navegador y "la configuración de APT está corrupta".
   creador la daba por descargada y fallaba la suma. Ahora el nombre de cada parte lleva el
   comienzo de su SHA256 y se borran las descargas de otras versiones.
 
+## Beta — Prueba completa de memorias falsas (2026-11-25)
+
+- **Caso real:** la memoria de Temu (creada con v0.0.9-test, la prueba rápida no avisó) dio
+  errores de btrfs en el primer arranque, justo al ampliar LLEVIX-DATOS: el sistema quedó
+  en solo lectura (`firstboot.sh` línea 243). Windows muestra el disco como 97,66 GB =
+  **100 000 MiB exactos**, un tamaño programado a mano típico de memorias falsas.
+- **Por qué la prueba rápida no la vio:** escribe ~30 MB en unos 500 puntos. Las memorias
+  falsas más comunes "van llenando": guardan bien cualquier posición hasta agotar su
+  capacidad real y después pisan lo más antiguo. Las pruebas unitarias lo demuestran
+  (`la_prueba_rapida_no_ve_una_memoria_que_va_llenando`).
+- **Prueba completa** (`prueba_disco::probar_completo`), como H2testw: datos únicos en todo
+  el disco (trozos de 4 MiB), lectura y comparación al final. Cada 1 GiB relee el comienzo
+  de cada tramo ya escrito, para detenerse poco después de pasar la capacidad real sin
+  escribir todo. Al terminar deja el último MiB en cero. El mensaje dice cuánto guarda
+  bien la memoria (aproximado).
+- **Tamaño sospechoso** (`capacidad_sospechosa`): múltiplo exacto de 1 GiB o de 1000 MiB
+  (desde 8 GiB) o una memoria extraíble de 1 TB o más. El creador muestra "Tamaño
+  sospechoso" y deja marcada la prueba completa; el usuario la puede marcar en cualquier
+  disco. Es opcional porque puede tardar horas.
+- **Interfaz:** casilla en el paso "Disco", etapa "Prueba completa del disco" y tiempo
+  restante estimado en todas las etapas. La prueba con disco virtual de Windows (VHD de
+  512 MB) también corre la prueba completa.
+
 ## Beta — USB lentos y memorias falsas (2026-11-23)
 
 - **Síntoma (beta, en vivo):** Zorin en una memoria USB barata, PC con 24 GB de RAM:
