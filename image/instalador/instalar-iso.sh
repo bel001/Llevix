@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # instalar-iso.sh — "Trae tu ISO": instala en este disco la distro de una ISO elegida por
-# el usuario (familia Ubuntu: Ubuntu y sabores, Linux Mint, Zorin OS, elementary…).
+# el usuario. Reconoce la familia de la ISO (familias.json) y usa su módulo
+# (familias/<id>.sh); hoy: familia Ubuntu (Ubuntu y sabores, Linux Mint, Zorin OS…).
 #
 # Lo ejecuta llevix-instalar-iso.service en la imagen "Llevix instalador". El creador
 # dejó la ISO dentro de la partición del sistema, en una zona que btrfs todavía no usa:
@@ -23,6 +24,8 @@ INICIO_RESERVA=$((16 * 1024 * 1024 * 1024))   # bytes desde el inicio de la part
 ENCABEZADO=$((1024 * 1024))
 MAX_ISO=$((8 * 1024 * 1024 * 1024 - ENCABEZADO))
 CAPA=/usr/share/llevix/capa
+FAMILIAS=/usr/lib/llevix/familias   # familias.json y un <id>.sh por familia
+JQ="$CAPA/jq"
 OPC_BTRFS="compress=zstd:3,noatime"
 
 T=/run/llevix-iso          # puntos de montaje temporales
@@ -41,6 +44,9 @@ limpiar() {
 }
 
 fallar() {
+    # En una subshell (por ejemplo dentro de "$(...)") solo se sale: el proceso principal
+    # recibe el error y deshace todo una sola vez.
+    if [[ "$BASHPID" != "$$" ]]; then exit 1; fi
     trap - ERR
     set +e
     echo
@@ -69,6 +75,10 @@ fallar() {
 trap 'fallar "falló un comando inesperadamente (línea $LINENO)"' ERR
 
 monta() { mkdir -p "$2"; mount "${@:3}" "$1" "$2"; LIMPIAR+=("umount -l '$2'"); }
+
+# Ejecuta una función de la familia con el aviso de error (trap ERR) activo también dentro
+# de ella (-E), como si su código estuviera escrito aquí.
+en_familia() { set -E; "$@"; set +E; }
 
 # ---------- Disco y encabezado ----------
 
@@ -110,44 +120,39 @@ monta "$ISO_LOOP" "$T/iso" -o ro -t iso9660
 # ---------- Qué sistema trae la ISO ----------
 
 paso "Leyendo la ISO"
-capas=()
-quitar=""
-if [[ -f "$T/iso/casper/install-sources.yaml" ]]; then
-    # Ubuntu 24.04 y posteriores: sistema en capas (minimal → minimal.standard → …).
-    ruta="$(awk '/^- /{d=0; p=""} /default: true/{d=1} /path:/{p=$2} d && p {print p; exit}' "$T/iso/casper/install-sources.yaml")"
-    [[ -n "$ruta" ]] || ruta="$(awk '/path:/{print $2; exit}' "$T/iso/casper/install-sources.yaml")"
-    base="${ruta%.squashfs}"
-    prefijo=""
-    IFS=. read -ra partes <<<"$base"
-    for p in "${partes[@]}"; do
-        prefijo="${prefijo:+$prefijo.}$p"
-        [[ -f "$T/iso/casper/$prefijo.squashfs" ]] || fallar "falta la capa $prefijo.squashfs"
-        capas+=("$T/iso/casper/$prefijo.squashfs")
-    done
-elif [[ -f "$T/iso/casper/filesystem.squashfs" ]]; then
-    capas=("$T/iso/casper/filesystem.squashfs")
-    [[ -f "$T/iso/casper/filesystem.manifest-remove" ]] && quitar="$T/iso/casper/filesystem.manifest-remove"
-else
-    fallar "esta ISO no es compatible (Llevix acepta ISOs de la familia Ubuntu: Ubuntu, Mint, Zorin, elementary…)"
+# La familia se reconoce por cómo está hecha la ISO, no por su nombre (familias.json).
+familia=""
+while IFS=$'\t' read -r id archivo; do
+    # Las rutas de familias.json son relativas y sin "..": no salen de la ISO.
+    [[ "$archivo" =~ ^[A-Za-z0-9._/-]+$ && "$archivo" != *..* && "$id" =~ ^[a-z0-9-]+$ ]] || continue
+    if [[ -z "$familia" && -e "$T/iso/$archivo" ]]; then familia="$id"; fi
+done < <("$JQ" -r '.familias[] | select(.soportada) | .id as $id | .archivos[] | [$id, .] | @tsv' "$FAMILIAS/familias.json")
+if [[ -z "$familia" ]]; then
+    fallar "esta ISO no es compatible (Llevix reconoce: $("$JQ" -r '[.familias[] | select(.soportada) | .ejemplos[]] | join(", ")' "$FAMILIAS/familias.json"))"
 fi
-kernel="$(find "$T/iso/casper" -maxdepth 1 -name "vmlinuz*" -type f | sort | head -n1)"
-[[ -f "$kernel" ]] || fallar "la ISO no trae kernel en casper/"
+nombre_familia="$("$JQ" -r --arg id "$familia" '.familias[] | select(.id == $id) | .nombre' "$FAMILIAS/familias.json")"
+firmante_esperado="$("$JQ" -r --arg id "$familia" '.familias[] | select(.id == $id) | .firmante' "$FAMILIAS/familias.json")"
+# shellcheck source=image/instalador/familias/casper.sh
+source "$FAMILIAS/$familia.sh"
+capas=(); quitar=""; kernel=""; version=""
+en_familia familia_sistema
 nombre_distro="$(head -n1 "$T/iso/.disk/info" 2>/dev/null | tr -cd 'A-Za-z0-9 ._()"+-' | cut -c1-80)"
-echo "Distro: ${nombre_distro:-desconocida}; capas: ${#capas[@]}"
+echo "Distro: ${nombre_distro:-desconocida}; $nombre_familia; capas: ${#capas[@]}"
+serie "familia=$familia"
 
-# Secure Boot: este disco arranca con el shim y GRUB firmados de Ubuntu, que solo
-# aceptan kernels firmados por Canonical (los de Ubuntu, Mint, Zorin, elementary…).
+# Secure Boot: cada familia arranca con el shim y GRUB firmados que le corresponden, y
+# esos solo aceptan kernels firmados por su distro (familias.json: "firmante").
 sb=0
 for f in /sys/firmware/efi/efivars/SecureBoot-*; do
     [[ -r "$f" && "$(od -An -t u1 -j4 -N1 "$f" | tr -d ' ')" == "1" ]] && sb=1
 done
 firmante="$(sbverify --list "$kernel" 2>/dev/null | sed -n 's/.*subject: //p' | head -n3 | tr '\n' ' ')"
 echo "Kernel firmado por: ${firmante:-nadie}"
-if [[ "$firmante" != *Canonical* ]]; then
+if [[ "$firmante" != *"$firmante_esperado"* ]]; then
     if (( sb )); then
-        fallar "el kernel de esta ISO no está firmado por Canonical y no arrancaría con Arranque seguro. Elige una distro del catálogo (no desactives Secure Boot)"
+        fallar "el kernel de esta ISO no está firmado por $firmante_esperado y no arrancaría con Arranque seguro. Elige una distro del catálogo (no desactives Secure Boot)"
     fi
-    echo "Aviso: el kernel no está firmado por Canonical; solo arrancará sin Arranque seguro."
+    echo "Aviso: el kernel no está firmado por $firmante_esperado; solo arrancará sin Arranque seguro."
 fi
 
 # ---------- Copiar el sistema ----------
@@ -195,53 +200,10 @@ printf '#!/bin/sh\nexit 101\n' > "$D/usr/sbin/policy-rc.d"; chmod +x "$D/usr/sbi
 LIMPIAR+=("rm -f '$D/usr/sbin/policy-rc.d'")
 
 paso "Quitando los programas del modo en vivo"
-{
-    [[ -n "$quitar" ]] && awk '{print $1}' "$quitar" | sed 's/:.*$//'
-    printf '%s\n' casper lupin-casper ubiquity ubiquity-casper ubiquity-frontend-gtk ubiquity-frontend-kde \
-        ubiquity-slideshow-ubuntu ubiquity-ubuntu-artwork live-installer calamares oem-config \
-        oem-config-gtk ubuntu-desktop-bootstrap
-} | sort -u > "$D/tmp/quitar"
-# shellcheck disable=SC2016  # se expande dentro del chroot
-en_destino 'instalados="$(dpkg-query -W -f="\${Package}\n" | sort -u)"
-    lista="$(sort -u /tmp/quitar | comm -12 - <(echo "$instalados") | tr "\n" " ")"
-    if [ -n "$lista" ]; then
-        apt-get -y purge $lista >/dev/null 2>&1 || for p in $lista; do apt-get -y purge "$p" >/dev/null 2>&1 || true; done
-    fi
-    rm -f /tmp/quitar'
+en_familia familia_quitar_vivo
 
 paso "Kernel e initramfs"
-version_kernel() {
-    find "$D/usr/lib/modules/" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort -V | tail -n1 || true
-}
-version="$(version_kernel)"
-if [[ -z "$version" ]]; then
-    # Ubuntu 24.04+ instala el kernel aparte, desde los paquetes que trae la propia ISO
-    # (carpetas dists/ y pool/). Se hace igual, sin internet.
-    echo "El sistema de la ISO no trae kernel: se instala desde los paquetes de la ISO."
-    suite="$(find "$T/iso/dists" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | head -n1)"
-    [[ -n "$suite" && -d "$T/iso/pool" ]] || fallar "la ISO no trae kernel ni paquetes para instalarlo"
-    mkdir -p "$D/media/llevix-iso"
-    monta "$T/iso" "$D/media/llevix-iso" --bind
-    componentes="$(find "$T/iso/dists/$suite" -mindepth 1 -maxdepth 1 -type d -printf '%f ' 2>/dev/null)"
-    echo "deb [trusted=yes] file:///media/llevix-iso $suite ${componentes:-main restricted}" > "$D/tmp/llevix-iso.list"
-    solo_iso="-o Dir::Etc::sourcelist=/tmp/llevix-iso.list -o Dir::Etc::sourceparts=/nonexistent -o APT::Get::List-Cleanup=0"
-    en_destino "apt-get $solo_iso update" || fallar "no se pudieron leer los paquetes de la ISO"
-    # El kernel que pide la ISO (install-sources.yaml) o, si no lo dice, el genérico (HWE primero).
-    meta="$(grep -Eo 'linux-generic(-hwe-[0-9.]+)?' "$T/iso/casper/install-sources.yaml" 2>/dev/null | head -n1 || true)"
-    if [[ -z "$meta" ]]; then
-        meta="$(en_destino "apt-cache $solo_iso pkgnames linux-generic" | grep -E '^linux-generic(-hwe-[0-9.]+)?$' | sort -r | head -n1 || true)"
-    fi
-    [[ -n "$meta" ]] || fallar "la ISO no trae un paquete de kernel"
-    echo "Instalando $meta desde la ISO"
-    en_destino "apt-get $solo_iso -y --no-install-recommends install $meta" || fallar "no se pudo instalar el kernel desde la ISO"
-    rm -f "$D/tmp/llevix-iso.list"
-    if umount -l "$D/media/llevix-iso"; then rmdir "$D/media/llevix-iso" || true; fi
-    version="$(version_kernel)"
-fi
-[[ -n "$version" ]] || fallar "la ISO no trae módulos del kernel"
-[[ -f "$D/boot/vmlinuz-$version" ]] || cp "$kernel" "$D/boot/vmlinuz-$version"
-ln -sf "vmlinuz-$version" "$D/boot/vmlinuz"
-ln -sf "initrd.img-$version" "$D/boot/initrd.img"
+en_familia familia_kernel
 
 paso "Capa de Llevix (portabilidad, cuidado del disco, primer arranque)"
 cp -a "$CAPA/overlay/." "$D/"
@@ -275,10 +237,7 @@ echo "127.0.1.1   llevix" >> "$D/etc/hosts"
 : > "$D/etc/machine-id"
 rm -f "$D"/etc/NetworkManager/system-connections/* 2>/dev/null || true
 
-if ! en_destino "update-initramfs -c -k $version >/dev/null 2>&1 || update-initramfs -u -k $version"; then
-    fallar "no se pudo crear el initramfs"
-fi
-[[ -f "$D/boot/initrd.img-$version" ]] || fallar "no se creó el initramfs"
+en_familia familia_initramfs
 
 # Módulos de GRUB para BIOS: el núcleo de GRUB que ya está en el disco es el del
 # instalador, así que sus módulos se copian al sistema nuevo.

@@ -464,6 +464,9 @@ if [[ "$TIPO" == "instalador" ]]; then
     install -D -m 0755 "$DIR_IMAGE/instalador/instalar-iso.sh" "$ROOT/usr/lib/llevix/instalar-iso.sh"
     install -D -m 0644 "$DIR_IMAGE/instalador/llevix-instalar-iso.service" \
         "$ROOT/usr/lib/systemd/system/llevix-instalar-iso.service"
+    # Familias de ISO que sabe instalar (docs/planes/familias-iso.md).
+    install -D -m 0644 "$DIR_IMAGE/instalador/familias.json" "$ROOT/usr/lib/llevix/familias/familias.json"
+    install -m 0644 "$DIR_IMAGE"/instalador/familias/*.sh "$ROOT/usr/lib/llevix/familias/"
     CAPA="$ROOT/usr/share/llevix/capa"
     mkdir -p "$CAPA"
     cp -a "$DIR_IMAGE/overlay" "$CAPA/overlay"
