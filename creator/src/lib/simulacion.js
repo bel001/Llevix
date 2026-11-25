@@ -33,10 +33,16 @@ const DISCOS = {
       numero: 2, modelo: "SanDisk Ultra Fit", tamano: 64 * GB, bus: "usb", extraible: true, sector_logico: 512,
       es_sistema: false, es_arranque: false, particiones: 1,
       volumenes: [{ letra: "E:", etiqueta: "FOTOS", sistema_archivos: "exFAT", tamano: 64 * GB, usado: 12.3 * GB, muestra: ["Vacaciones 2025", "Cumple Ana", "Documentos"] }],
+      sospechoso: false,
     },
     {
       numero: 3, modelo: "Samsung T7 SSD", tamano: 500 * GB, bus: "usb", extraible: false, sector_logico: 512,
-      es_sistema: false, es_arranque: false, particiones: 0, volumenes: [],
+      es_sistema: false, es_arranque: false, particiones: 0, volumenes: [], sospechoso: false,
+    },
+    {
+      // Memoria falsa típica: 100 000 MiB exactos.
+      numero: 5, modelo: "USB DISK 2.0", tamano: 104_857_600_000, bus: "usb", extraible: true, sector_logico: 512,
+      es_sistema: false, es_arranque: false, particiones: 0, volumenes: [], sospechoso: true,
     },
   ],
   chicos: [
@@ -58,12 +64,13 @@ export async function open() {
   return "C:\\Users\\ana\\Descargas\\linuxmint-22.3-cinnamon-64bit.iso";
 }
 
-async function simularCreacion(conIso) {
+async function simularCreacion(conIso, completa) {
   const etapas = [
     ["descarga", 3.6 * GB, 40],
     ["verificando_descarga", 3.6 * GB, 15],
     ["preparando", 0, 5],
     ["prueba_disco", 64 * 1024 * 1024, 10],
+    ...(completa ? [["prueba_completa", 2 * 104 * GB, 30]] : []),
     ["escritura", 4.4 * GB, 40],
     ["verificacion", 4.4 * GB, 20],
     ...(conIso ? [["iso", 3 * 2.9 * GB, 25]] : []),
@@ -93,7 +100,7 @@ export async function invoke(comando, args = {}) {
       await esperar(600);
       return DISCOS;
     case "crear_usb":
-      simularCreacion(!!args.iso);
+      simularCreacion(!!args.iso, !!args.pruebaCompleta);
       return null;
     case "cancelar":
       return null;
