@@ -299,6 +299,7 @@ pub fn enumerar_discos() -> Resultado<Vec<Disco>> {
             es_arranque: false,
             particiones: contar_particiones(&f),
             volumenes: por_disco.remove(&numero).unwrap_or_default(),
+            sospechoso: crate::prueba_disco::capacidad_sospechosa(tamano, extraible),
         });
     }
     Ok(discos)
@@ -606,6 +607,9 @@ mod prueba_vhd {
             let tamano = destino.tamano;
             let prueba = crate::prueba_disco::probar(&mut destino, tamano, &cancelar, &mut |_, _| {}).unwrap();
             println!("prueba del disco: {:.1} MB/s, {:.0} escrituras pequeñas por segundo", prueba.mb_s, prueba.iops);
+            // Y la prueba completa (el disco virtual es chico: 512 MB).
+            crate::prueba_disco::probar_completo(&mut destino, tamano, &cancelar, &mut |_, _| {}).unwrap();
+            println!("prueba completa del disco: correcta");
             crear::escribir_todo(Cursor::new(zst), &bmap, &mut destino, None, config, &cancelar, &mut |_, _, _| {})
                 .unwrap();
         }

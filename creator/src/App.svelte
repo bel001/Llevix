@@ -46,6 +46,7 @@
   let errorDiscos = $state("");
   let discoElegido = $state(null);
   let entiendoBorrado = $state(false);
+  let pruebaCompleta = $state(false);
   let confirmando = $state(false);
 
   // Progreso
@@ -54,19 +55,21 @@
   let total = $state(0);
   let errorFinal = $state("");
   let avisoDisco = $state("");
+  let inicioEtapa = $state(0);
 
   const ETAPAS = {
     descarga: "Descargando la imagen",
     verificando_descarga: "Comprobando la descarga",
     preparando: "Preparando el disco",
     prueba_disco: "Probando el disco",
+    prueba_completa: "Prueba completa del disco",
     escritura: "Escribiendo en el disco",
     verificacion: "Comprobando lo escrito",
     iso: "Guardando tu ISO en el disco",
     config: "Guardando tu cuenta",
   };
   const ordenEtapas = $derived(
-    ["descarga", "verificando_descarga", "preparando", "prueba_disco", "escritura", "verificacion", ...(isoRuta ? ["iso"] : []), "config"],
+    ["descarga", "verificando_descarga", "preparando", "prueba_disco", ...(pruebaCompleta ? ["prueba_completa"] : []), "escritura", "verificacion", ...(isoRuta ? ["iso"] : []), "config"],
   );
   const indiceEtapa = $derived(ordenEtapas.indexOf(etapa));
 
@@ -77,6 +80,16 @@
   ];
 
   const porcentaje = $derived(total > 0 ? Math.min(100, Math.floor((hechos / total) * 100)) : 0);
+  // Tiempo que falta en la etapa actual (se estima con lo que lleva hecho).
+  const restante = $derived.by(() => {
+    if (total <= 1 || hechos <= 0 || hechos >= total) return "";
+    const s = (Date.now() - inicioEtapa) / 1000;
+    if (s < 15) return "";
+    const r = (s * (total - hechos)) / hechos;
+    if (r < 90) return "menos de 2 minutos";
+    if (r < 3600) return `unos ${Math.round(r / 60)} minutos`;
+    return `unas ${Math.floor(r / 3600)} h ${Math.round((r % 3600) / 60)} min`;
+  });
   const contrasenasOk = $derived(contrasena.length >= 4 && contrasena === contrasena2);
   const usuarioOk = $derived(/^[a-z][a-z0-9_-]{0,31}$/.test(usuario));
   const fuerza = $derived.by(() => {
@@ -111,6 +124,7 @@
     cargarManifest();
     const quitar = [];
     listen("llevix://progreso", (e) => {
+      if (e.payload.etapa !== etapa) inicioEtapa = Date.now();
       etapa = e.payload.etapa;
       hechos = e.payload.hechos;
       total = e.payload.total;
@@ -158,6 +172,7 @@
     contrasena = contrasena2 = "";
     discos = await invoke("listar_discos", { tamanoMinimo: variante.tamano_imagen });
     discoElegido = discos.aptos[0];
+    pruebaCompleta = !!discoElegido?.sospechoso;
     entiendoBorrado = true;
     paso = 3;
     if (n === 3) return;
@@ -242,11 +257,12 @@
     errorFinal = "";
     avisoDisco = "";
     etapa = "descarga";
+    inicioEtapa = Date.now();
     hechos = 0;
     total = 0;
     paso = 4;
     try {
-      await invoke("crear_usb", { variante, disco: discoElegido.numero, iso: isoRuta });
+      await invoke("crear_usb", { variante, disco: discoElegido.numero, iso: isoRuta, pruebaCompleta });
     } catch (e) {
       errorFinal = String(e);
     }
@@ -481,7 +497,7 @@
           {#if !cargandoDiscos}
             <div class="tarjetas discos">
               {#each discos.aptos as d (d.numero)}
-                <button class="tarjeta disco" class:elegida={discoElegido?.numero === d.numero} onclick={() => { discoElegido = d; entiendoBorrado = false; }}>
+                <button class="tarjeta disco" class:elegida={discoElegido?.numero === d.numero} onclick={() => { discoElegido = d; entiendoBorrado = false; pruebaCompleta = !!d.sospechoso; }}>
                   <div class="fila">
                     <span class="monograma neutro"><Icono nombre={d.extraible ? "usb" : "ssd"} tam={22} /></span>
                     <div class="nombres">
@@ -500,6 +516,7 @@
                   {:else}
                     <div class="pie-tarjeta"><span class="etiqueta verde">Vacío</span></div>
                   {/if}
+                  {#if d.sospechoso}<div class="pie-tarjeta"><span class="etiqueta aviso-tamano">Tamaño sospechoso</span></div>{/if}
                 </button>
               {/each}
             </div>
@@ -521,6 +538,19 @@
                   </div>
                 </div>
               {/if}
+              {#if discoElegido.sospechoso}
+                <div class="aviso">
+                  <Icono nombre="alerta" />
+                  <div>
+                    <strong>Este tamaño ({formatoBytes(discoElegido.tamano)}) es típico de las memorias falsas.</strong>
+                    <p>Dicen tener más espacio del real y, al llenarse, dañan lo que tienen guardado. Te recomendamos la prueba completa antes de crear Llevix.</p>
+                  </div>
+                </div>
+              {/if}
+              <label class="casilla suave">
+                <input type="checkbox" bind:checked={pruebaCompleta} />
+                <span><strong>Prueba completa de la memoria.</strong> Escribe y lee todo el disco para descubrir memorias falsas, como H2testw. Puede tardar varias horas en memorias grandes o lentas; si la memoria es falsa, se detiene apenas lo nota.</span>
+              </label>
               <label class="casilla">
                 <input type="checkbox" bind:checked={entiendoBorrado} />
                 <span>Entiendo que se borrará todo el contenido de «{nombreDisco(discoElegido)}».</span>
@@ -545,7 +575,8 @@
                   <small>{ETAPAS[etapa] ?? "Trabajando…"}</small>
                 </div>
               </div>
-              {#if total > 1}<p class="nota">{formatoBytes(hechos)} de {formatoBytes(total)}</p>{/if}
+              {#if total > 1}<p class="nota">{formatoBytes(hechos)} de {formatoBytes(total)}{#if etapa === "prueba_completa"} (escribir y leer todo){/if}{#if restante} · faltan {restante}{/if}</p>{/if}
+              {#if etapa === "prueba_completa"}<p class="nota">Se escribe y se lee toda la memoria para comprobar que guarda lo que dice. Puedes cancelar cuando quieras.</p>{/if}
               <ol class="lista-etapas">
                 {#each ordenEtapas as e, i}
                   <li class:hecha={i < indiceEtapa} class:actual={i === indiceEtapa}>
@@ -625,6 +656,7 @@
         <div class="circulo-estado peligro-circulo"><Icono nombre="alerta" tam={30} /></div>
         <h3>¿Borrar el disco y crear Llevix?</h3>
         <p>Se borrará todo el contenido de <strong>{nombreDisco(discoElegido)}</strong> ({formatoBytes(discoElegido.tamano)}) y se instalará <strong>{nombreElegido}</strong>. Esto no se puede deshacer.</p>
+        {#if pruebaCompleta}<p>Antes se hará la prueba completa de la memoria (puede tardar horas).</p>{/if}
         <div class="acciones">
           <button class="boton suave" onclick={() => (confirmando = false)}>No, volver</button>
           <button class="boton peligro" onclick={empezar}>Sí, borrar y crear</button>

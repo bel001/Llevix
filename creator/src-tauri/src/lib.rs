@@ -113,6 +113,7 @@ fn crear_usb(
     variante: Variante,
     disco: u32,
     iso: Option<String>,
+    prueba_completa: bool,
     estado: State<'_, Estado>,
 ) -> Result<(), String> {
     let config = estado
@@ -135,7 +136,7 @@ fn crear_usb(
 
     std::thread::spawn(move || {
         let iso = iso.map(std::path::PathBuf::from);
-        let resultado = proceso(&app, &variante, disco, iso.as_deref(), &config, &cache, &cancelar);
+        let resultado = proceso(&app, &variante, disco, iso.as_deref(), prueba_completa, &config, &cache, &cancelar);
         ocupado.store(false, Ordering::SeqCst);
         let fin = match resultado {
             Ok(aviso) => Fin { ok: true, mensaje: "Listo".into(), aviso },
@@ -152,11 +153,13 @@ fn avisar(app: &AppHandle, etapa: &'static str, hechos: u64, total: u64) {
 
 /// Todo el proceso, en orden. Cualquier error lo detiene. Devuelve un aviso opcional
 /// para la pantalla final.
+#[allow(clippy::too_many_arguments)]
 fn proceso(
     app: &AppHandle,
     variante: &Variante,
     disco: u32,
     iso: Option<&std::path::Path>,
+    prueba_completa: bool,
     config: &ConfigLlevix,
     cache: &std::path::Path,
     cancelar: &AtomicBool,
@@ -189,16 +192,18 @@ fn proceso(
         return Err(Error::Integridad("el tamaño de la imagen no coincide con el mapa".into()));
     }
 
-    escribir_en_disco(app, disco, &bmap, &rutas, iso, config, cancelar)
+    escribir_en_disco(app, disco, &bmap, &rutas, iso, prueba_completa, config, cancelar)
 }
 
 #[cfg(windows)]
+#[allow(clippy::too_many_arguments)]
 fn escribir_en_disco(
     app: &AppHandle,
     disco: u32,
     bmap: &llevix_nucleo::bmap::Bmap,
     rutas: &[std::path::PathBuf],
     iso: Option<&std::path::Path>,
+    prueba_completa: bool,
     config: &ConfigLlevix,
     cancelar: &AtomicBool,
 ) -> Result<Option<String>, Error> {
@@ -217,6 +222,11 @@ fn escribir_en_disco(
     let aviso = prueba.aviso();
     if let Some(a) = &aviso {
         let _ = app.emit("llevix://aviso", a.clone());
+    }
+    // Prueba completa (opcional, la elige el usuario): detecta las memorias falsas que
+    // la prueba rápida no ve. Escribe y lee todo el disco: puede tardar horas.
+    if prueba_completa {
+        prueba_disco::probar_completo(&mut destino, tamano, cancelar, &mut |h, t| avisar(app, "prueba_completa", h, t))?;
     }
 
     let nombre_iso = iso.map(|r| r.file_name().unwrap_or_default().to_string_lossy().to_string());
@@ -246,12 +256,14 @@ fn escribir_en_disco(
 }
 
 #[cfg(not(windows))]
+#[allow(clippy::too_many_arguments)]
 fn escribir_en_disco(
     _app: &AppHandle,
     _disco: u32,
     _bmap: &llevix_nucleo::bmap::Bmap,
     _rutas: &[std::path::PathBuf],
     _iso: Option<&std::path::Path>,
+    _prueba_completa: bool,
     _config: &ConfigLlevix,
     _cancelar: &AtomicBool,
 ) -> Result<Option<String>, Error> {

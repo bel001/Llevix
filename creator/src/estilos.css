@@ -116,6 +116,7 @@ button { font: inherit; color: inherit; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .etiqueta { display: inline-flex; align-items: center; gap: 4px; font-size: 0.74rem; padding: 2px 7px; border-radius: 4px; background: var(--superficie-2); color: var(--suave); border: 1px solid var(--borde); }
 .etiqueta.verde { background: var(--verde-tenue); color: var(--verde); border-color: transparent; }
+.etiqueta.aviso-tamano { background: var(--aviso-tenue); color: var(--aviso); border-color: transparent; }
 .descripcion { color: var(--suave); font-size: 0.86rem; line-height: 1.45; flex: 1; }
 .pie-tarjeta { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.78rem; color: var(--suave); border-top: 1px solid var(--borde); padding-top: 9px; }
 .pie-tarjeta span { display: inline-flex; align-items: center; gap: 5px; }
@@ -165,6 +166,8 @@ input.invalido { border-color: var(--peligro); }
 .aviso.info { background: var(--marca-tenue); color: var(--marca); border-color: color-mix(in srgb, var(--marca) 30%, transparent); }
 .casilla { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--borde); background: var(--superficie); cursor: pointer; font-size: 0.9rem; }
 .casilla input { width: 16px; height: 16px; accent-color: var(--peligro); flex: none; }
+.casilla.suave { align-items: flex-start; line-height: 1.45; }
+.casilla.suave input { accent-color: var(--marca); margin-top: 2px; }
 
 /* ---------- Botones y barra inferior ---------- */
 .barra-acciones { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 28px; background: var(--superficie); border-top: 1px solid var(--borde); }
