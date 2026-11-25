@@ -78,4 +78,11 @@ El piloto automático se detuvo aquí: lo que sigue necesita personas y PCs real
       escritorio"). La regla de marcas pide no usarlos como marca del producto. ¿Se quitan
       (fondo y logo neutros de Llevix) o se dejan? Llevix ya cambia GRUB, el nombre del
       sistema y la pantalla de arranque.
+- [ ] **Arch y derivados en "Trae tu ISO"** (EndeavourOS, Manjaro, CachyOS; también
+      Pop!_OS). No traen arranque firmado para Secure Boot. La única forma sin desactivarlo:
+      Llevix firma el kernel con una llave propia y, la primera vez, aparece una pantalla
+      azul donde el usuario acepta esa llave (una sola vez por PC). Desventajas: es un paso
+      más para alguien nuevo, y la llave queda guardada en la memoria (quien la tenga podría
+      firmar otro sistema que esa PC aceptaría). ¿Se ofrece así, o Arch queda fuera?
+      Detalle: docs/planes/familias-iso.md, sección 6.
 - [x] Firefox: resuelto (repositorio oficial de Mozilla en Ubuntu, el de Mint en Mint).
