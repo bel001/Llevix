@@ -78,14 +78,15 @@ Windows puede mostrar «Windows protegió tu PC» porque el instalador todavía 
 pulsa «Más información» → «Ejecutar de todas formas».
 
 **¿Ya tienes una ISO?** En el paso 1 elige **«Usar mi propia ISO»**. Llevix la instala en el
-disco la primera vez que arranca. Por ahora acepta ISOs de 64 bits, de hasta 8 GB, de la
-familia Ubuntu:
+disco la primera vez que arranca. Por ahora acepta ISOs de 64 bits, de hasta 8 GB, de las
+familias Ubuntu y Debian:
 
-- **Probadas:** Ubuntu 24.04 o posterior, Kubuntu, Linux Mint 22 (Cinnamon, MATE y Xfce) y
-  Zorin OS 18.
+- **Probadas:** Ubuntu 24.04 o posterior, Kubuntu, Linux Mint 22 (Cinnamon, MATE y Xfce),
+  Zorin OS 18 y Debian 13 (ISO live).
 - **Deberían funcionar** (misma familia, aún sin probar): Xubuntu, Lubuntu, Ubuntu MATE,
-  Ubuntu Budgie y elementary OS.
-- **Todavía no:** Debian, Fedora, Pop!_OS, Arch, Manjaro y openSUSE.
+  Ubuntu Budgie, elementary OS y las demás ISO live de Debian 13 (GNOME, KDE, Cinnamon…).
+- **Todavía no** (el creador las reconoce y avisa antes de borrar nada): Fedora, Pop!_OS,
+  Arch, Manjaro, EndeavourOS y openSUSE.
 
 **¿Sin Windows?** Descarga la imagen `.img.zst` de tu variante (y sus partes `.001`, `.002`…
 si las tiene), únelas, descomprímelas y escríbelas con balenaEtcher o `dd`. Sin el creador no

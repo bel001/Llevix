@@ -115,7 +115,8 @@ Idioma del proyecto: español (código comentado, mensajes al usuario, documenta
   Arch con decisión pendiente), siempre instalando, nunca en vivo
   (docs/planes/familias-iso.md, docs/planes/fase-10.md). 10.1 lista: familias.json +
   familias/casper.sh, sin cambios para el usuario. 10.2 lista: el creador muestra familia y
-  «Probada por Llevix» (tests/compatibilidad-isos.json). Sigue 10.3 (Debian live).
+  «Probada por Llevix» (tests/compatibilidad-isos.json). 10.3 lista: ISO live de Debian 13
+  (familias/live-boot.sh, con su shim y GRUB firmados). Sigue 10.4 (Fedora, dracut).
 - Versión de prueba v0.0.10-test: prueba completa de memorias falsas.
 - Beta: prueba completa opcional de memorias falsas en el creador (las que "van llenando"
   pasan la prueba rápida; caso real: memoria de Temu de 100 000 MiB). Tamaños sospechosos
