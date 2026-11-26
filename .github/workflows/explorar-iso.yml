@@ -1,0 +1,46 @@
+# Explora cómo está armada una ISO de Linux (tools/explorar-iso.sh) para escribir el módulo
+# de su familia sin adivinar. Solo lee: no construye ni publica nada.
+name: explorar-iso
+
+on:
+  push:
+    branches: ['fase-*']
+    paths:
+      - 'tools/explorar-iso.sh'
+      - '.github/workflows/explorar-iso.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  explorar:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - nombre: fedora-45-workstation
+            sumas: https://dl.fedoraproject.org/pub/fedora/linux/releases/45/Workstation/x86_64/iso/Fedora-Workstation-45-1.4-x86_64-CHECKSUM
+            iso: https://dl.fedoraproject.org/pub/fedora/linux/releases/45/Workstation/x86_64/iso/Fedora-Workstation-Live-45-1.4.x86_64.iso
+    steps:
+      - uses: actions/checkout@v5
+      - name: Herramientas
+        run: sudo apt-get update && sudo apt-get install -y sbsigntool squashfs-tools erofs-utils file
+      - name: Descargar y verificar la ISO
+        run: |
+          cd /mnt && sudo chown "$USER" .
+          archivo="$(basename "${{ matrix.iso }}")"
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 20 -o sumas.txt "${{ matrix.sumas }}"
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 20 -o "$archivo" "${{ matrix.iso }}"
+          # Formatos: "suma  archivo" (Ubuntu, Debian) o "SHA256 (archivo) = suma" (Fedora).
+          suma="$(sed -n "s/^SHA256 ($archivo) = \([0-9a-f]\{64\}\)$/\1/p; s/^\([0-9a-f]\{64\}\)  *\*\?$archivo$/\1/p" sumas.txt | head -n1)"
+          [[ -n "$suma" ]] || { echo "no está $archivo en las sumas"; exit 1; }
+          echo "$suma  $archivo" | sha256sum -c -
+          echo "ISO=/mnt/$archivo" >> "$GITHUB_ENV"
+      - name: Explorar
+        run: sudo ./tools/explorar-iso.sh "$ISO" 2>&1 | tee explorar.log
+      - uses: actions/upload-artifact@v5
+        with:
+          name: explorar-${{ matrix.nombre }}
+          path: explorar.log
