@@ -302,6 +302,23 @@ navegador y "la configuración de APT está corrupta".
   creador la daba por descargada y fallaba la suma. Ahora el nombre de cada parte lleva el
   comienzo de su SHA256 y se borran las descargas de otras versiones.
 
+## Fase 10.3 — "Trae tu ISO" con Debian (familia live-boot) (2026-11-26)
+
+- Antes de escribir código se revisó la ISO real con las listas que publica Debian
+  (`debian-live-*.iso.contents` y `.packages`): sistema en `live/filesystem.squashfs`,
+  kernel firmado por Debian en `live/`, sin `filesystem.packages-remove`. El sistema de la
+  ISO **no** trae el arranque firmado, pero la ISO sí, en `pool/` con su índice en `dists/`.
+- `image/instalador/familias/live-boot.sh`: quita el modo en vivo (live-boot, live-config,
+  live-task-*, Calamares), instala desde la propia ISO (sin internet) `shim-signed`,
+  `grub-efi-amd64-signed`, `grub-efi-amd64-bin`, `grub-pc-bin` y `grub2-common` (sin
+  `grub-efi-amd64`, cuyo postinst tocaría la NVRAM) y, con el sistema ya como `@`, corre
+  `grub-install --uefi-secure-boot --removable --no-nvram`: el shim y el GRUB de Debian
+  reemplazan a los de Ubuntu en la ESP. Se comprueba que el GRUB quedó firmado por Debian.
+- `instalar-iso.sh` llama a `familia_arranque` si la familia la define (casper no).
+- `iso-propia.yml` prueba la ISO live Xfce actual de Debian 13 (el nombre con la versión se
+  resuelve con SHA256SUMS). Verde a la primera: instalación en 561 s, Secure Boot, BIOS,
+  cuenta, red, sonido, navegador (firefox-esr, que ahora reconoce estado-arranque.sh) y Datos.
+
 ## Fase 10.2 — El creador reconoce la familia y las ISOs probadas (2026-11-26)
 
 - `familias.json` suma `live-boot` (Debian), `dracut` (Fedora) y `archiso` (Arch, Manjaro),

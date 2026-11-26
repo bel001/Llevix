@@ -85,6 +85,12 @@ jobs:
           - nombre: ubuntu-24.04.5.1
             sumas: https://releases.ubuntu.com/24.04/SHA256SUMS
             iso: https://releases.ubuntu.com/24.04/ubuntu-24.04.5.1-desktop-amd64.iso
+          # Debian publica sus ISO live con el número de versión en el nombre: "*" se
+          # resuelve con la lista de sumas (siempre la versión actual de Debian 13).
+          - nombre: debian-13-live-xfce
+            familia: live-boot
+            sumas: https://cdimage.debian.org/debian-cd/current-live/amd64/iso-hybrid/SHA256SUMS
+            iso: https://cdimage.debian.org/debian-cd/current-live/amd64/iso-hybrid/debian-live-*-amd64-xfce.iso
     env:
       DIR: /mnt/iso
     steps:
@@ -112,24 +118,33 @@ jobs:
       - name: Descargar y verificar la ISO
         run: |
           cd "$DIR"
-          archivo="$(basename "${{ matrix.iso }}")"
           curl -fsSL --retry 5 --retry-all-errors --retry-delay 20 -o sumas.txt "${{ matrix.sumas }}"
-          curl -fsSL --retry 5 --retry-all-errors --retry-delay 20 -o "$archivo" "${{ matrix.iso }}"
+          url="${{ matrix.iso }}"
+          if [[ "$url" == *"*"* ]]; then
+            patron="$(basename "$url")"
+            archivo="$(awk '{print $2}' sumas.txt | sed 's/^\*//' | grep -x "${patron//\*/.*}" | sort -V | tail -n1)"
+            [[ -n "$archivo" ]] || { echo "no hay ninguna ISO $patron en las sumas"; exit 1; }
+            url="$(dirname "$url")/$archivo"
+          fi
+          archivo="$(basename "$url")"
+          echo "ISO=$archivo" >> "$GITHUB_ENV"
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 20 -o "$archivo" "$url"
           grep "[ *]$archivo\$" sumas.txt | sed 's/ \*/  /' | sha256sum -c -
           ls -lh
       - name: Instalar la ISO y probar
         env:
           LLEVIX_TEST_DIR: ${{ env.DIR }}/pruebas
         run: |
-          ./tests/iso-propia-test.sh "$DIR/llevix-instalador.img.zst" "$DIR/llevix-instalador.img.bmap"             "$DIR/$(basename "${{ matrix.iso }}")"
+          ./tests/iso-propia-test.sh "$DIR/llevix-instalador.img.zst" "$DIR/llevix-instalador.img.bmap" "$DIR/$ISO"
       - name: Entrada para tests/compatibilidad-isos.json
         run: |
-          archivo="$(basename "${{ matrix.iso }}")"
+          archivo="$ISO"
           jq -cn --arg nombre "${{ matrix.nombre }}" --arg archivo "$archivo" \
             --argjson tamano "$(stat -c %s "$DIR/$archivo")" \
             --arg sha256 "$(sha256sum "$DIR/$archivo" | cut -d' ' -f1)" \
             --arg fecha "$(date -u +%F)" --arg llevix "${GITHUB_REF_NAME}" \
-            '{nombre: $nombre, archivo: $archivo, familia: "casper", tamano: $tamano, sha256: $sha256,
+            --arg familia "${{ matrix.familia || 'casper' }}" \
+            '{nombre: $nombre, archivo: $archivo, familia: $familia, tamano: $tamano, sha256: $sha256,
               firmware: ["uefi-secureboot", "bios"], llevix: $llevix, fecha: $fecha}' \
             | sed 's/^/COMPATIBILIDAD /'
           # La lista del repositorio debe incluir esta ISO (si no, el creador no la marca como probada).

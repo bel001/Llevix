@@ -40,6 +40,19 @@
       ],
       "llevix": "v0.0.10-test",
       "fecha": "2026-11-26"
+    },
+    {
+      "nombre": "Debian 13.8 live Xfce",
+      "archivo": "debian-live-13.8.0-amd64-xfce.iso",
+      "familia": "live-boot",
+      "tamano": 3847454720,
+      "sha256": "99e40aa5a1602454f28042a1199852e90c283182f29ba3736cb4f3f0fe174dae",
+      "firmware": [
+        "uefi-secureboot",
+        "bios"
+      ],
+      "llevix": "fase-10",
+      "fecha": "2026-11-26"
     }
   ]
 }

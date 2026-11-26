@@ -136,6 +136,7 @@ nombre_familia="$("$JQ" -r --arg id "$familia" '.familias[] | select(.id == $id)
 # shellcheck disable=SC2016  # $id es una variable de jq, no de bash
 firmante_esperado="$("$JQ" -r --arg id "$familia" '.familias[] | select(.id == $id) | .firmante' "$FAMILIAS/familias.json")"
 # shellcheck source=image/instalador/familias/casper.sh
+# shellcheck source=image/instalador/familias/live-boot.sh
 source "$FAMILIAS/$familia.sh"
 capas=(); quitar=""; kernel=""; version=""
 en_familia familia_sistema
@@ -284,6 +285,12 @@ menuentry '${nombre_distro:-Linux} (Llevix, modo gráficos seguros)' {
     initrd /@/boot/initrd.img
 }
 EOF
+fi
+# Arranque UEFI propio de la familia (por ejemplo, el shim y el GRUB firmados de Debian).
+# La familia casper no lo necesita: usa el de Ubuntu que ya está en la partición EFI.
+if declare -F familia_arranque >/dev/null; then
+    paso "Arranque firmado de la distro (UEFI)"
+    en_familia familia_arranque
 fi
 rm -f "$D/usr/sbin/policy-rc.d"
 

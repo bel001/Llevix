@@ -403,9 +403,9 @@
               <details class="compatibles" open={!!errorIso}>
                 <summary>¿Qué ISOs puedo usar con «Usar mi propia ISO»?</summary>
                 <div class="compatibles-cuerpo">
-                  <p><strong>Probadas:</strong> Ubuntu 24.04 o posterior, Kubuntu, Linux Mint 22 (Cinnamon, MATE y Xfce) y Zorin OS 18.</p>
-                  <p><strong>Deberían funcionar</strong> (misma familia, aún sin probar): Xubuntu, Lubuntu, Ubuntu MATE, Ubuntu Budgie y elementary OS.</p>
-                  <p><strong>Todavía no</strong> (Llevix las reconoce y te avisa antes de borrar nada): Debian, Fedora, Arch, Manjaro, EndeavourOS, Pop!_OS y openSUSE. Para Debian elige una del catálogo.</p>
+                  <p><strong>Probadas:</strong> Ubuntu 24.04 o posterior, Kubuntu, Linux Mint 22 (Cinnamon, MATE y Xfce), Zorin OS 18 y Debian 13 (ISO live).</p>
+                  <p><strong>Deberían funcionar</strong> (misma familia, aún sin probar): Xubuntu, Lubuntu, Ubuntu MATE, Ubuntu Budgie, elementary OS y las demás ISO live de Debian 13 (GNOME, KDE, Cinnamon…).</p>
+                  <p><strong>Todavía no</strong> (Llevix las reconoce y te avisa antes de borrar nada): Fedora, Arch, Manjaro, EndeavourOS, Pop!_OS y openSUSE.</p>
                   <p>Al elegir tu ISO verás si es una de las que Llevix probó tal cual («Probada por Llevix») o si es de una familia conocida pero aún sin probar.</p>
                   <p class="nota">La ISO debe ser de 64 bits y pesar 8 GB o menos.</p>
                 </div>
