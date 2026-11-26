@@ -3,12 +3,28 @@
   "descripcion": "ISOs que pasaron las pruebas de \"Trae tu ISO\" en CI (instalación, escritorio, cuenta y persistencia en QEMU). El creador muestra «Probada por Llevix» cuando la ISO elegida coincide en tamaño y SHA256. Cada prueba de iso-propia.yml imprime su entrada (línea COMPATIBILIDAD).",
   "isos": [
     {
+      "nombre": "Linux Mint 22.3 Xfce",
+      "archivo": "linuxmint-22.3-xfce-64bit.iso",
+      "familia": "casper",
+      "tamano": 3033710592,
+      "sha256": "45a835b5dddaf40e84d776549e0b19b3fbd49673b6cc6434ebddbfcd217df776",
+      "firmware": [
+        "uefi-secureboot",
+        "bios"
+      ],
+      "llevix": "v0.0.10-test",
+      "fecha": "2026-11-26"
+    },
+    {
       "nombre": "Kubuntu 24.04.5",
       "archivo": "kubuntu-24.04.5-desktop-amd64.iso",
       "familia": "casper",
       "tamano": 5457694720,
       "sha256": "ae59e59c54337bcd8f8e60825b4a3f58797121ae0e89855524ffc92b8075c1d6",
-      "firmware": ["uefi-secureboot", "bios"],
+      "firmware": [
+        "uefi-secureboot",
+        "bios"
+      ],
       "llevix": "v0.0.10-test",
       "fecha": "2026-11-26"
     },
@@ -18,7 +34,10 @@
       "familia": "casper",
       "tamano": 6250332160,
       "sha256": "4da4a0c9035da8e68a59a838674f403f0a54472c78a83b4fb7f78d03588f85a7",
-      "firmware": ["uefi-secureboot", "bios"],
+      "firmware": [
+        "uefi-secureboot",
+        "bios"
+      ],
       "llevix": "v0.0.10-test",
       "fecha": "2026-11-26"
     }

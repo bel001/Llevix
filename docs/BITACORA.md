@@ -302,6 +302,21 @@ navegador y "la configuración de APT está corrupta".
   creador la daba por descargada y fallaba la suma. Ahora el nombre de cada parte lleva el
   comienzo de su SHA256 y se borran las descargas de otras versiones.
 
+## Fase 10.2 — El creador reconoce la familia y las ISOs probadas (2026-11-26)
+
+- `familias.json` suma `live-boot` (Debian), `dracut` (Fedora) y `archiso` (Arch, Manjaro),
+  marcadas `soportada: false`: el creador las reconoce y explica que todavía no las instala,
+  antes de borrar nada. El instalador sigue usando solo las soportadas.
+- `creator/nucleo/src/iso.rs` lee las señales de ese mismo archivo (`include_str!`) en vez
+  de tener las rutas de Ubuntu escritas en el código; el kernel se busca en las carpetas de
+  cada familia (`carpetas_kernel`).
+- `tests/compatibilidad-isos.json`: ISOs probadas en CI (Mint 22.3 Xfce, Kubuntu 24.04.5,
+  Ubuntu 24.04.5.1). Si el tamaño coincide, el creador calcula el SHA256 y muestra «Probada
+  por Llevix»; si no, «Debería funcionar» con la familia. `iso-propia.yml` imprime la línea
+  `COMPATIBILIDAD {...}` de cada ISO y avisa si falta en la lista.
+- Verde en CI: en la prueba real, el creador marcó Kubuntu y Ubuntu como «Probada» y Mint
+  (que todavía no estaba en la lista) como «Familia».
+
 ## Fase 10.1 — Familias de ISO como módulos (2026-11-26)
 
 - `image/instalador/familias.json` describe cada familia: señales en la ISO (rutas que la
