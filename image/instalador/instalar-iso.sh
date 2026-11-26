@@ -122,6 +122,7 @@ monta "$ISO_LOOP" "$T/iso" -o ro -t iso9660
 paso "Leyendo la ISO"
 # La familia se reconoce por cómo está hecha la ISO, no por su nombre (familias.json).
 familia=""
+# shellcheck disable=SC2016  # $id es una variable de jq, no de bash
 while IFS=$'\t' read -r id archivo; do
     # Las rutas de familias.json son relativas y sin "..": no salen de la ISO.
     [[ "$archivo" =~ ^[A-Za-z0-9._/-]+$ && "$archivo" != *..* && "$id" =~ ^[a-z0-9-]+$ ]] || continue
@@ -130,7 +131,9 @@ done < <("$JQ" -r '.familias[] | select(.soportada) | .id as $id | .archivos[] |
 if [[ -z "$familia" ]]; then
     fallar "esta ISO no es compatible (Llevix reconoce: $("$JQ" -r '[.familias[] | select(.soportada) | .ejemplos[]] | join(", ")' "$FAMILIAS/familias.json"))"
 fi
+# shellcheck disable=SC2016  # $id es una variable de jq, no de bash
 nombre_familia="$("$JQ" -r --arg id "$familia" '.familias[] | select(.id == $id) | .nombre' "$FAMILIAS/familias.json")"
+# shellcheck disable=SC2016  # $id es una variable de jq, no de bash
 firmante_esperado="$("$JQ" -r --arg id "$familia" '.familias[] | select(.id == $id) | .firmante' "$FAMILIAS/familias.json")"
 # shellcheck source=image/instalador/familias/casper.sh
 source "$FAMILIAS/$familia.sh"
