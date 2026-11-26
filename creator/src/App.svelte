@@ -381,8 +381,17 @@
                     <span class="marca-elegida"><Icono nombre="check" tam={14} /></span>
                   </div>
                   <p class="descripcion">
-                    {#if revisandoIso}Revisando la ISO…{:else if isoInfo}<strong>{isoInfo.nombre}</strong> · {formatoBytes(isoInfo.tamano)}{:else}Ubuntu y sus sabores, Linux Mint, Zorin OS, elementary OS…{/if}
+                    {#if revisandoIso}Revisando la ISO (si es una de las probadas, se comprueba entera)…{:else if isoInfo}<strong>{isoInfo.nombre}</strong> · {formatoBytes(isoInfo.tamano)}{:else}Ubuntu y sus sabores, Linux Mint, Zorin OS, elementary OS…{/if}
                   </p>
+                  {#if isoInfo && !revisandoIso}
+                    <div class="pie-tarjeta">
+                      {#if isoInfo.nivel === "probada"}
+                        <span class="etiqueta verde"><Icono nombre="check" tam={12} /> Probada por Llevix{isoInfo.probada_como ? ` (${isoInfo.probada_como})` : ""}</span>
+                      {:else}
+                        <span class="etiqueta aviso-tamano">Debería funcionar: {isoInfo.nombre_familia}, esta ISO aún sin probar</span>
+                      {/if}
+                    </div>
+                  {/if}
                   <div class="pie-tarjeta"><span>Se instala en el primer arranque · máximo 8 GB</span></div>
                 </button>
               {/if}
@@ -396,7 +405,8 @@
                 <div class="compatibles-cuerpo">
                   <p><strong>Probadas:</strong> Ubuntu 24.04 o posterior, Kubuntu, Linux Mint 22 (Cinnamon, MATE y Xfce) y Zorin OS 18.</p>
                   <p><strong>Deberían funcionar</strong> (misma familia, aún sin probar): Xubuntu, Lubuntu, Ubuntu MATE, Ubuntu Budgie y elementary OS.</p>
-                  <p><strong>Todavía no:</strong> Debian, Fedora, Pop!_OS, Arch, Manjaro y openSUSE. Para Debian elige una del catálogo.</p>
+                  <p><strong>Todavía no</strong> (Llevix las reconoce y te avisa antes de borrar nada): Debian, Fedora, Arch, Manjaro, EndeavourOS, Pop!_OS y openSUSE. Para Debian elige una del catálogo.</p>
+                  <p>Al elegir tu ISO verás si es una de las que Llevix probó tal cual («Probada por Llevix») o si es de una familia conocida pero aún sin probar.</p>
                   <p class="nota">La ISO debe ser de 64 bits y pesar 8 GB o menos.</p>
                 </div>
               </details>

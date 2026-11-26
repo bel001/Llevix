@@ -93,7 +93,10 @@ export async function invoke(comando, args = {}) {
       return MANIFEST;
     case "analizar_iso":
       await esperar(700);
-      return { nombre: "Linux Mint 22.3 \"Zena\" Cinnamon", tipo: "squashfs", tamano: 2.9 * GB };
+      return {
+        nombre: "Linux Mint 22.3 \"Zena\" Cinnamon", tipo: "squashfs", tamano: 2.9 * GB,
+        familia: "casper", nombre_familia: "familia Ubuntu (casper)", nivel: "familia", probada_como: null,
+      };
     case "preparar_cuenta":
       return { usuario: args.datos.usuario, hostname: `llevix-${args.datos.usuario}` };
     case "listar_discos":

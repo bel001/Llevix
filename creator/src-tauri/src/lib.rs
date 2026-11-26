@@ -69,7 +69,7 @@ async fn analizar_iso(ruta: String) -> Result<llevix_nucleo::iso::InfoIso, Strin
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_default();
         let mut f = std::fs::File::open(&ruta).map_err(|e| format!("No se pudo abrir la ISO: {e}"))?;
-        llevix_nucleo::iso::analizar(&mut f, &nombre).map_err(|e| e.to_string())
+        llevix_nucleo::iso::analizar(&mut f, &nombre, true).map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| e.to_string())?
@@ -172,7 +172,7 @@ fn proceso(
             return Err(Error::Config("para usar una ISO propia se necesita la imagen del instalador".into()));
         }
         let nombre = ruta.file_name().unwrap_or_default().to_string_lossy().to_string();
-        llevix_nucleo::iso::analizar(&mut std::fs::File::open(ruta)?, &nombre)?;
+        llevix_nucleo::iso::analizar(&mut std::fs::File::open(ruta)?, &nombre, false)?;
     }
 
     // 1. Descargar (o continuar) y verificar la imagen.

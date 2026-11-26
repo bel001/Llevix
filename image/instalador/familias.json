@@ -6,8 +6,36 @@
       "nombre": "familia Ubuntu (casper)",
       "soportada": true,
       "archivos": ["casper/install-sources.yaml", "casper/filesystem.squashfs"],
+      "carpetas_kernel": ["casper"],
       "firmante": "Canonical",
       "ejemplos": ["Ubuntu", "Kubuntu", "Xubuntu", "Lubuntu", "Linux Mint", "Zorin OS", "elementary OS"]
+    },
+    {
+      "id": "live-boot",
+      "nombre": "familia Debian (live-boot)",
+      "soportada": false,
+      "archivos": ["live/filesystem.squashfs"],
+      "carpetas_kernel": ["live"],
+      "firmante": "Debian",
+      "ejemplos": ["Debian"]
+    },
+    {
+      "id": "dracut",
+      "nombre": "familia Fedora (dracut)",
+      "soportada": false,
+      "archivos": ["LiveOS/squashfs.img"],
+      "carpetas_kernel": ["images/pxeboot", "isolinux", "boot/x86_64/loader"],
+      "firmante": "Fedora",
+      "ejemplos": ["Fedora", "Nobara"]
+    },
+    {
+      "id": "archiso",
+      "nombre": "familia Arch (archiso)",
+      "soportada": false,
+      "archivos": ["arch/x86_64/airootfs.sfs", "arch/x86_64/airootfs.erofs", "manjaro/x86_64/rootfs.sfs"],
+      "carpetas_kernel": ["arch/boot/x86_64", "boot"],
+      "firmante": "",
+      "ejemplos": ["Arch Linux", "EndeavourOS", "Manjaro", "CachyOS"]
     }
   ]
 }

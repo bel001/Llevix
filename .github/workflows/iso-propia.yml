@@ -122,6 +122,20 @@ jobs:
           LLEVIX_TEST_DIR: ${{ env.DIR }}/pruebas
         run: |
           ./tests/iso-propia-test.sh "$DIR/llevix-instalador.img.zst" "$DIR/llevix-instalador.img.bmap"             "$DIR/$(basename "${{ matrix.iso }}")"
+      - name: Entrada para tests/compatibilidad-isos.json
+        run: |
+          archivo="$(basename "${{ matrix.iso }}")"
+          jq -cn --arg nombre "${{ matrix.nombre }}" --arg archivo "$archivo" \
+            --argjson tamano "$(stat -c %s "$DIR/$archivo")" \
+            --arg sha256 "$(sha256sum "$DIR/$archivo" | cut -d' ' -f1)" \
+            --arg fecha "$(date -u +%F)" --arg llevix "${GITHUB_REF_NAME}" \
+            '{nombre: $nombre, archivo: $archivo, familia: "casper", tamano: $tamano, sha256: $sha256,
+              firmware: ["uefi-secureboot", "bios"], llevix: $llevix, fecha: $fecha}' \
+            | sed 's/^/COMPATIBILIDAD /'
+          # La lista del repositorio debe incluir esta ISO (si no, el creador no la marca como probada).
+          sha="$(sha256sum "$DIR/$archivo" | cut -d' ' -f1)"
+          jq -e --arg s "$sha" 'any(.isos[]; .sha256 == $s)' tests/compatibilidad-isos.json >/dev/null \
+            || echo "::warning::$archivo no está en tests/compatibilidad-isos.json"
       - uses: actions/upload-artifact@v5
         if: always()
         with:
