@@ -40,11 +40,10 @@ done < <(find "$T/iso" -maxdepth 4 -type f \( -iname '*.efi' -o -iname 'vmlinuz*
 
 titulo "Sistema de la ISO"
 sq="$(find "$T/iso" -maxdepth 3 -type f \( -name 'filesystem.squashfs' -o -name 'squashfs.img' -o -name '*.sfs' -o -name '*.erofs' \) | head -n1)"
-echo "imagen del sistema: ${sq#"$T/iso/"}"
-case "$sq" in
-    *.erofs) monta "$sq" "$T/sq" ;;
-    *) mkdir -p "$T/sq"; mount -t squashfs -o ro,loop "$sq" "$T/sq"; MONTADOS+=("$T/sq") ;;
-esac
+echo "imagen del sistema: ${sq#"$T/iso/"} ($(blkid -o value -s TYPE "$sq" 2>/dev/null || true); $(file -b "$sq" | cut -c1-80))"
+# El nombre no siempre dice el formato (Fedora usa EROFS en "squashfs.img"): mount lo detecta.
+monta "$sq" "$T/sq"
+findmnt -no FSTYPE "$T/sq"
 R="$T/sq"
 ls -la "$R" | head -30
 if [[ -f "$R/LiveOS/rootfs.img" ]]; then
