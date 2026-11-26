@@ -26,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Herramientas
-        run: sudo apt-get update && sudo apt-get install -y sbsigntool squashfs-tools erofs-utils file
+        run: sudo apt-get update && sudo apt-get install -y sbsigntool squashfs-tools erofs-utils file attr libcap2-bin
       - name: Descargar y verificar la ISO
         run: |
           cd /mnt && sudo chown "$USER" .
@@ -40,6 +40,34 @@ jobs:
           echo "ISO=/mnt/$archivo" >> "$GITHUB_ENV"
       - name: Explorar
         run: sudo ./tools/explorar-iso.sh "$ISO" 2>&1 | tee explorar.log
+      # Fase 10.4: el kernel del instalador (Ubuntu 24.04, 6.8) no abre el EROFS con LZMA de
+      # Fedora y erofsfuse es muy lento (~2 MB/s). Se mide la extracción directa con
+      # fsck.erofs y qué kernels de Ubuntu traen EROFS con LZMA.
+      - name: EROFS sin el kernel
+        run: |
+          set -x
+          fsck.erofs --version || true
+          fsck.erofs --help 2>&1 | head -40 || true
+          sudo mkdir -p /mnt/iso-ro /mnt/extraido
+          sudo mount -o ro,loop "$ISO" /mnt/iso-ro
+          img=/mnt/iso-ro/LiveOS/squashfs.img
+          sudo dump.erofs -s "$img" | head -40 || true
+          inicio=$SECONDS
+          sudo fsck.erofs --extract=/mnt/extraido --xattrs "$img" || sudo fsck.erofs --extract=/mnt/extraido "$img"
+          echo "fsck.erofs --extract: $((SECONDS - inicio)) s, $(sudo du -sh /mnt/extraido | cut -f1)"
+          sudo getfattr -d -m - /mnt/extraido/usr/bin/newuidmap /mnt/extraido/usr/bin/ping 2>&1 | head -20 || true
+          sudo getcap /mnt/extraido/usr/bin/newuidmap /mnt/extraido/usr/sbin/* 2>/dev/null | head || true
+          echo "enlaces duros: $(sudo find /mnt/extraido -xdev -type f -links +1 | wc -l)"
+          nproc
+      - name: Kernels de Ubuntu 24.04 con EROFS y LZMA
+        run: |
+          cd /tmp
+          for paq in linux-image-generic linux-image-generic-hwe-24.04; do
+            v="$(apt-cache depends "$paq" | sed -n 's/.*Depends: linux-image-\([0-9].*-generic\)$//p' | head -n1)"
+            echo "== $paq -> $v"
+            apt-get download "linux-modules-$v" >/dev/null 2>&1 || { echo "no se pudo bajar"; continue; }
+            dpkg-deb --fsys-tarfile linux-modules-"$v"_*.deb | tar -xO "./boot/config-$v" | grep -E 'EROFS' || true
+          done
       - uses: actions/upload-artifact@v5
         with:
           name: explorar-${{ matrix.nombre }}
