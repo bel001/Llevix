@@ -3,6 +3,8 @@
 Description=Llevix: instalar la ISO elegida
 After=local-fs.target systemd-udev-settle.service
 Wants=systemd-udev-settle.service
+# La partición EFI está en fstab con nofail: local-fs.target no la espera.
+RequiresMountsFor=/boot/efi
 Conflicts=getty@tty1.service
 Before=getty@tty1.service
 

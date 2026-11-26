@@ -141,7 +141,8 @@ firmante_esperado="$("$JQ" -r --arg id "$familia" '.familias[] | select(.id == $
 source "$FAMILIAS/$familia.sh"
 capas=(); tipo_capa="squashfs"; quitar=""; kernel=""; version=""
 en_familia familia_sistema
-nombre_distro="$(head -n1 "$T/iso/.disk/info" 2>/dev/null | tr -cd 'A-Za-z0-9 ._()"+-' | cut -c1-80)"
+# Fedora no trae .disk/info.
+nombre_distro="$( { head -n1 "$T/iso/.disk/info" 2>/dev/null || true; } | tr -cd 'A-Za-z0-9 ._()"+-' | cut -c1-80)"
 echo "Distro: ${nombre_distro:-desconocida}; $nombre_familia; capas: ${#capas[@]}"
 serie "familia=$familia"
 

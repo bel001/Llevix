@@ -6,6 +6,8 @@
 #
 # Solo LEE: monta la ISO y sus imágenes internas en modo solo lectura (loop devices) y
 # nunca escribe en discos.
+# Herramienta de lectura: "ls" se usa solo para mostrar, y ${Package} es de dpkg-query.
+# shellcheck disable=SC2012,SC2016
 set -euo pipefail
 
 ISO="${1:?uso: sudo $0 <distro.iso>}"
