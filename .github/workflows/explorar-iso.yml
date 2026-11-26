@@ -63,7 +63,7 @@ jobs:
         run: |
           cd /tmp
           for paq in linux-image-generic linux-image-generic-hwe-24.04; do
-            v="$(apt-cache depends "$paq" | sed -n 's/.*Depends: linux-image-\([0-9].*-generic\)$//p' | head -n1)"
+            v="$(apt-cache depends "$paq" | sed -n 's/.*Depends: linux-image-\([0-9].*-generic\)$/\1/p' | head -n1)"
             echo "== $paq -> $v"
             apt-get download "linux-modules-$v" >/dev/null 2>&1 || { echo "no se pudo bajar"; continue; }
             dpkg-deb --fsys-tarfile linux-modules-"$v"_*.deb | tar -xO "./boot/config-$v" | grep -E 'EROFS' || true
