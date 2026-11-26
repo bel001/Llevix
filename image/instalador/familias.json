@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "familias": [
+    {
+      "id": "casper",
+      "nombre": "familia Ubuntu (casper)",
+      "soportada": true,
+      "archivos": ["casper/install-sources.yaml", "casper/filesystem.squashfs"],
+      "firmante": "Canonical",
+      "ejemplos": ["Ubuntu", "Kubuntu", "Xubuntu", "Lubuntu", "Linux Mint", "Zorin OS", "elementary OS"]
+    }
+  ]
+}
