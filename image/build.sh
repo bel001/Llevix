@@ -112,7 +112,9 @@ if [[ "$BASE" == "debian" ]]; then
     [[ -f /usr/share/keyrings/debian-archive-keyring.gpg ]] || error "falta debian-archive-keyring"
     KERNEL="linux-image-amd64 firmware-linux firmware-sof-signed firmware-iwlwifi firmware-realtek firmware-atheros firmware-brcm80211 firmware-misc-nonfree"
 else
-    KERNEL="linux-generic linux-firmware"
+    # PAQUETE_KERNEL (opcional en la variante): el instalador usa el kernel HWE, que lee
+    # los EROFS con LZMA de Fedora (el 6.8 de 24.04 no).
+    KERNEL="${PAQUETE_KERNEL:-linux-generic} linux-firmware"
 fi
 
 mkdir -p "$OUT_DIR"
