@@ -302,6 +302,24 @@ navegador y "la configuración de APT está corrupta".
   creador la daba por descargada y fallaba la suma. Ahora el nombre de cada parte lleva el
   comienzo de su SHA256 y se borran las descargas de otras versiones.
 
+## Fase 10.1 — Familias de ISO como módulos (2026-11-26)
+
+- `image/instalador/familias.json` describe cada familia: señales en la ISO (rutas que la
+  delatan), quién firma su kernel para Secure Boot y distros de ejemplo. Hoy solo `casper`.
+- `image/instalador/familias/casper.sh`: lo que antes estaba escrito dentro de
+  `instalar-iso.sh` para Ubuntu (dónde está el sistema, quitar el modo en vivo, kernel desde
+  la ISO, initramfs). El instalador reconoce la familia con el `jq` de la capa, carga su
+  módulo y sigue igual; build.sh copia todo a `/usr/lib/llevix/familias`.
+- Las funciones de la familia corren con `set -E` (`en_familia`) para que un error dentro de
+  ellas siga deshaciendo todo y explicando el motivo, como cuando el código estaba en línea.
+  `fallar` dentro de una subshell solo sale (el proceso principal deshace una sola vez).
+- La ruta de `install-sources.yaml` se valida (solo un nombre `.squashfs`): la ISO es una
+  entrada no confiable.
+- Verde en CI: Mint, Kubuntu y Ubuntu reales con "Trae tu ISO" y las 11 variantes (Zorin
+  se construye desde su ISO con este instalador).
+- v0.0.10-test publicada (el paso final se repitió: GitHub no entregó el artefacto de Mint
+  MATE la primera vez).
+
 ## Beta — Prueba completa de memorias falsas (2026-11-25)
 
 - **Caso real:** la memoria de Temu (creada con v0.0.9-test, la prueba rápida no avisó) dio
