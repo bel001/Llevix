@@ -32,8 +32,17 @@ fn ejecutar() -> Result<(), Box<dyn std::error::Error>> {
     let cancelar = AtomicBool::new(false);
 
     let nombre_iso = PathBuf::from(ruta_iso).file_name().unwrap_or_default().to_string_lossy().to_string();
-    let info = iso::analizar(&mut File::open(ruta_iso)?, &nombre_iso)?;
-    println!("ISO compatible: {} ({:?}, {} MiB)", info.nombre, info.tipo, info.tamano / 1024 / 1024);
+    // Como el creador al elegir la ISO: familia y si es una de las ISOs probadas.
+    let info = iso::analizar(&mut File::open(ruta_iso)?, &nombre_iso, true)?;
+    println!(
+        "ISO compatible: {} ({}, {:?}, nivel {:?}{}, {} MiB)",
+        info.nombre,
+        info.nombre_familia,
+        info.tipo,
+        info.nivel,
+        info.probada_como.as_deref().map(|p| format!(": {p}")).unwrap_or_default(),
+        info.tamano / 1024 / 1024
+    );
 
     let texto = std::fs::read_to_string(bmap)?;
     Bmap::verificar_archivo(&texto)?;

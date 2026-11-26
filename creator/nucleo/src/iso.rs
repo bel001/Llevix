@@ -7,6 +7,10 @@
 //!
 //! El lector de ISO 9660 es mínimo: solo busca archivos por ruta usando los nombres
 //! Joliet (UCS-2) o, si no hay, los nombres Rock Ridge / ISO 9660 de la ISO.
+//!
+//! La ISO se reconoce por cómo está armada (su **familia**), no por su nombre: las señales
+//! están en `image/instalador/familias.json`, el mismo archivo que usa el instalador. Las
+//! ISOs que pasaron las pruebas de CI están en `tests/compatibilidad-isos.json`.
 
 use crate::error::{Error, Resultado};
 use crate::gpt;
@@ -29,12 +33,89 @@ pub enum TipoIso {
     Squashfs,
 }
 
+/// Qué tan seguro es que la ISO funcione.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Nivel {
+    /// Esta misma ISO (tamaño y SHA256) pasó las pruebas de Llevix.
+    Probada,
+    /// Su familia está soportada, pero esta ISO no se probó.
+    Familia,
+}
+
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct InfoIso {
     /// Nombre de la distro según .disk/info (o el nombre del archivo si no hay).
     pub nombre: String,
     pub tipo: TipoIso,
     pub tamano: u64,
+    /// Familia reconocida (id de familias.json) y su nombre para mostrar.
+    pub familia: String,
+    pub nombre_familia: String,
+    pub nivel: Nivel,
+    /// Si es una ISO probada: su nombre en la lista (por ejemplo "Kubuntu 24.04.5").
+    pub probada_como: Option<String>,
+}
+
+/// Una familia de familias.json.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct Familia {
+    pub id: String,
+    pub nombre: String,
+    pub soportada: bool,
+    /// Rutas dentro de la ISO que, si alguna existe, delatan a la familia.
+    pub archivos: Vec<String>,
+    /// Carpetas de la ISO donde la familia guarda su kernel (vmlinuz…).
+    pub carpetas_kernel: Vec<String>,
+    pub ejemplos: Vec<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct ArchivoFamilias {
+    version: u32,
+    familias: Vec<Familia>,
+}
+
+/// Una ISO probada de tests/compatibilidad-isos.json.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct Probada {
+    pub nombre: String,
+    pub familia: String,
+    pub tamano: u64,
+    pub sha256: String,
+}
+
+#[derive(serde::Deserialize)]
+struct ArchivoProbadas {
+    version: u32,
+    isos: Vec<Probada>,
+}
+
+const FAMILIAS_JSON: &str = include_str!("../../../image/instalador/familias.json");
+const PROBADAS_JSON: &str = include_str!("../../../tests/compatibilidad-isos.json");
+
+/// Familias que Llevix reconoce (las pruebas comprueban que el archivo es válido).
+pub fn familias() -> &'static [Familia] {
+    static F: std::sync::OnceLock<Vec<Familia>> = std::sync::OnceLock::new();
+    F.get_or_init(|| {
+        let a: ArchivoFamilias = serde_json::from_str(FAMILIAS_JSON).expect("familias.json no es válido");
+        assert_eq!(a.version, 1, "versión de familias.json no soportada");
+        a.familias
+    })
+}
+
+/// ISOs probadas en CI.
+pub fn probadas() -> &'static [Probada] {
+    static P: std::sync::OnceLock<Vec<Probada>> = std::sync::OnceLock::new();
+    P.get_or_init(|| {
+        let a: ArchivoProbadas = serde_json::from_str(PROBADAS_JSON).expect("compatibilidad-isos.json no es válido");
+        assert_eq!(a.version, 1, "versión de compatibilidad-isos.json no soportada");
+        a.isos
+    })
+}
+
+fn ejemplos_soportados() -> String {
+    familias().iter().filter(|f| f.soportada).flat_map(|f| f.ejemplos.iter().cloned()).collect::<Vec<_>>().join(", ")
 }
 
 /// Una entrada de directorio de ISO 9660.
@@ -161,8 +242,13 @@ fn buscar<R: Read + Seek>(r: &mut R, v: &Volumen, ruta: &str) -> Resultado<Optio
     Ok(Some(actual))
 }
 
-/// Revisa si la ISO es compatible con "Trae tu ISO" y devuelve su nombre y tipo.
-pub fn analizar<R: Read + Seek>(r: &mut R, nombre_archivo: &str) -> Resultado<InfoIso> {
+/// Revisa si la ISO es compatible con "Trae tu ISO": reconoce su familia y, si
+/// `revisar_probada`, comprueba (por tamaño y SHA256) si es una de las ISOs probadas.
+pub fn analizar<R: Read + Seek>(r: &mut R, nombre_archivo: &str, revisar_probada: bool) -> Resultado<InfoIso> {
+    analizar_con(r, nombre_archivo, if revisar_probada { probadas() } else { &[] })
+}
+
+fn analizar_con<R: Read + Seek>(r: &mut R, nombre_archivo: &str, lista: &[Probada]) -> Resultado<InfoIso> {
     let tamano = r.seek(SeekFrom::End(0))?;
     if tamano > MAX_ISO {
         return Err(Error::Config(format!(
@@ -172,24 +258,48 @@ pub fn analizar<R: Read + Seek>(r: &mut R, nombre_archivo: &str) -> Resultado<In
         )));
     }
     let v = volumen(r)?;
-    let tipo = if buscar(r, &v, "casper/install-sources.yaml")?.is_some() {
-        TipoIso::Capas
-    } else if buscar(r, &v, "casper/filesystem.squashfs")?.is_some() {
-        TipoIso::Squashfs
-    } else {
-        return Err(Error::Config(
-            "esta ISO no es compatible: Llevix acepta ISOs de la familia Ubuntu (Ubuntu y sus sabores, Linux Mint, Zorin OS, elementary OS…). Para otras distros, elige una del catálogo.".into(),
-        ));
-    };
-    let tiene_kernel = buscar(r, &v, "casper")?
-        .map(|c| leer_directorio(r, c.sector, c.tamano, v.joliet))
-        .transpose()?
-        .unwrap_or_default()
-        .iter()
-        .any(|e| e.nombre.to_ascii_lowercase().starts_with("vmlinuz"));
-    if !tiene_kernel {
-        return Err(Error::Config("la ISO no trae el kernel en casper/".into()));
+
+    // 1. Familia, por las señales de familias.json.
+    let mut reconocida = None;
+    'familias: for f in familias() {
+        for a in &f.archivos {
+            if buscar(r, &v, a)?.is_some() {
+                reconocida = Some(f);
+                break 'familias;
+            }
+        }
     }
+    let Some(familia) = reconocida else {
+        return Err(Error::Config(format!(
+            "esta ISO no es compatible: Llevix no reconoce cómo está armada. Acepta ISOs como {}. Para otras distros, elige una del catálogo.",
+            ejemplos_soportados()
+        )));
+    };
+    if !familia.soportada {
+        return Err(Error::Config(format!(
+            "esta ISO es de la {} ({}). Llevix la reconoce, pero todavía no sabe instalarla: llegará en una próxima versión. Mientras tanto, elige una del catálogo o una ISO como {}.",
+            familia.nombre,
+            familia.ejemplos.join(", "),
+            ejemplos_soportados()
+        )));
+    }
+
+    // 2. Kernel donde lo guarda su familia.
+    let mut tiene_kernel = false;
+    for c in &familia.carpetas_kernel {
+        if let Some(d) = buscar(r, &v, c)?.filter(|d| d.es_dir) {
+            if leer_directorio(r, d.sector, d.tamano, v.joliet)?.iter().any(|e| e.nombre.to_ascii_lowercase().starts_with("vmlinuz")) {
+                tiene_kernel = true;
+                break;
+            }
+        }
+    }
+    if !tiene_kernel {
+        return Err(Error::Config(format!("la ISO no trae el kernel donde lo guarda la {}", familia.nombre)));
+    }
+    let tipo = if buscar(r, &v, "casper/install-sources.yaml")?.is_some() { TipoIso::Capas } else { TipoIso::Squashfs };
+
+    // 3. Nombre de la distro.
     let mut nombre = String::new();
     if let Some(info) = buscar(r, &v, ".disk/info")? {
         let mut buf = vec![0u8; (info.tamano as usize).min(512)];
@@ -200,7 +310,33 @@ pub fn analizar<R: Read + Seek>(r: &mut R, nombre_archivo: &str) -> Resultado<In
     if nombre.is_empty() {
         nombre = nombre_archivo.to_string();
     }
-    Ok(InfoIso { nombre, tipo, tamano })
+
+    // 4. ¿Es una ISO probada? Solo se calcula el SHA256 si el tamaño coincide con alguna.
+    let mut probada_como = None;
+    let candidatas: Vec<&Probada> = lista.iter().filter(|p| p.tamano == tamano && p.familia == familia.id).collect();
+    if !candidatas.is_empty() {
+        r.seek(SeekFrom::Start(0))?;
+        let mut suma = Sha256::new();
+        let mut buf = vec![0u8; 4 * 1024 * 1024];
+        loop {
+            let n = r.read(&mut buf)?;
+            if n == 0 {
+                break;
+            }
+            suma.update(&buf[..n]);
+        }
+        let sha = hex::encode(suma.finalize());
+        probada_como = candidatas.iter().find(|p| p.sha256.eq_ignore_ascii_case(&sha)).map(|p| p.nombre.clone());
+    }
+    Ok(InfoIso {
+        nombre,
+        tipo,
+        tamano,
+        familia: familia.id.clone(),
+        nombre_familia: familia.nombre.clone(),
+        nivel: if probada_como.is_some() { Nivel::Probada } else { Nivel::Familia },
+        probada_como,
+    })
 }
 
 /// Deja limpio el nombre de archivo para el encabezado (solo caracteres seguros).
@@ -403,8 +539,10 @@ pub(crate) mod pruebas {
             ("casper/filesystem.squashfs", b"squashfs"),
             ("casper/vmlinuz", b"kernel"),
         ]);
-        let info = analizar(&mut Cursor::new(iso), "mint.iso").unwrap();
+        let info = analizar(&mut Cursor::new(iso), "mint.iso", true).unwrap();
         assert_eq!(info.tipo, TipoIso::Squashfs);
+        assert_eq!(info.familia, "casper");
+        assert_eq!(info.nivel, Nivel::Familia);
         assert_eq!(info.nombre, "Linux Mint 22.3 \"Zena\" - Release amd64");
     }
 
@@ -415,17 +553,65 @@ pub(crate) mod pruebas {
             ("casper/minimal.squashfs", b"x"),
             ("casper/vmlinuz", b"k"),
         ]);
-        let info = analizar(&mut Cursor::new(iso), "ubuntu.iso").unwrap();
+        let info = analizar(&mut Cursor::new(iso), "ubuntu.iso", false).unwrap();
         assert_eq!(info.tipo, TipoIso::Capas);
         assert_eq!(info.nombre, "ubuntu.iso");
     }
 
     #[test]
+    fn reconoce_familias_que_todavia_no_instala() {
+        let fedora = iso_de_prueba(&[("LiveOS/squashfs.img", b"x"), ("isolinux/vmlinuz", b"k")]);
+        let r = analizar(&mut Cursor::new(fedora), "fedora.iso", true);
+        assert!(matches!(r, Err(Error::Config(ref m)) if m.contains("familia Fedora") && m.contains("todavía no")), "{r:?}");
+        let debian = iso_de_prueba(&[("live/filesystem.squashfs", b"x"), ("live/vmlinuz", b"k")]);
+        let r = analizar(&mut Cursor::new(debian), "debian.iso", true);
+        assert!(matches!(r, Err(Error::Config(ref m)) if m.contains("familia Debian")), "{r:?}");
+    }
+
+    #[test]
     fn rechaza_isos_no_compatibles() {
-        let fedora = iso_de_prueba(&[("LiveOS/squashfs.img", b"x"), ("images/pxeboot/vmlinuz", b"k")]);
-        let r = analizar(&mut Cursor::new(fedora), "fedora.iso");
-        assert!(matches!(r, Err(Error::Config(ref m)) if m.contains("no es compatible")), "{r:?}");
-        assert!(analizar(&mut Cursor::new(vec![0u8; 100_000]), "x.iso").is_err());
+        let rara = iso_de_prueba(&[("boot/kernel", b"x")]);
+        let r = analizar(&mut Cursor::new(rara), "rara.iso", true);
+        assert!(matches!(r, Err(Error::Config(ref m)) if m.contains("no es compatible") && m.contains("Ubuntu")), "{r:?}");
+        assert!(analizar(&mut Cursor::new(vec![0u8; 100_000]), "x.iso", true).is_err());
+        // Familia correcta pero sin kernel.
+        let sin_kernel = iso_de_prueba(&[("casper/filesystem.squashfs", b"x")]);
+        assert!(analizar(&mut Cursor::new(sin_kernel), "x.iso", true).is_err());
+    }
+
+    #[test]
+    fn reconoce_una_iso_probada_por_tamano_y_sha256() {
+        let iso = iso_de_prueba(&[("casper/filesystem.squashfs", b"squashfs"), ("casper/vmlinuz", b"kernel")]);
+        let sha = hex::encode(Sha256::digest(&iso));
+        let lista = vec![Probada { nombre: "Prueba 1.0".into(), familia: "casper".into(), tamano: iso.len() as u64, sha256: sha }];
+        let info = analizar_con(&mut Cursor::new(iso.clone()), "p.iso", &lista).unwrap();
+        assert_eq!(info.nivel, Nivel::Probada);
+        assert_eq!(info.probada_como.as_deref(), Some("Prueba 1.0"));
+        // Mismo tamaño, otro contenido: no es la probada.
+        let mut otra = iso.clone();
+        *otra.last_mut().unwrap() ^= 1;
+        assert_eq!(analizar_con(&mut Cursor::new(otra), "p.iso", &lista).unwrap().nivel, Nivel::Familia);
+    }
+
+    #[test]
+    fn familias_y_probadas_son_validas() {
+        let f = familias();
+        assert!(f.iter().any(|x| x.soportada));
+        let mut ids: Vec<&str> = f.iter().map(|x| x.id.as_str()).collect();
+        ids.sort();
+        ids.dedup();
+        assert_eq!(ids.len(), f.len(), "ids repetidos en familias.json");
+        for x in f {
+            assert!(!x.archivos.is_empty() && !x.carpetas_kernel.is_empty() && !x.ejemplos.is_empty(), "{}", x.id);
+            for a in x.archivos.iter().chain(&x.carpetas_kernel) {
+                assert!(!a.starts_with('/') && !a.contains("..") && !a.is_empty(), "ruta no válida: {a}");
+            }
+        }
+        for p in probadas() {
+            assert!(ids.contains(&p.familia.as_str()), "familia desconocida: {}", p.familia);
+            assert!(p.sha256.len() == 64 && p.sha256.chars().all(|c| c.is_ascii_hexdigit()), "{}", p.nombre);
+            assert!(p.tamano > 0 && p.tamano <= MAX_ISO, "{}", p.nombre);
+        }
     }
 
     #[test]
