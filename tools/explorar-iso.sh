@@ -30,7 +30,7 @@ titulo "Archivos grandes de la ISO"
 
 titulo ".disk/info y parámetros del kernel en los menús"
 cat "$T/iso/.disk/info" 2>/dev/null || echo "(sin .disk/info)"
-grep -rhoE '(linux|linuxefi|append|kernel)[[:space:]].*' "$T/iso/boot" "$T/iso/EFI" "$T/iso/isolinux" "$T/iso/loader" 2>/dev/null | sort -u | head -20
+grep -rhoE '(linux|linuxefi|append|kernel)[[:space:]].*' "$T/iso/boot" "$T/iso/EFI" "$T/iso/isolinux" "$T/iso/loader" 2>/dev/null | sort -u | head -20 || true
 
 titulo "Firmas de los .efi y kernels de la ISO"
 while IFS= read -r f; do
@@ -57,10 +57,10 @@ titulo "os-release"
 cat "$R/etc/os-release" 2>/dev/null || cat "$R/usr/lib/os-release"
 
 titulo "/boot, módulos y archivos EFI dentro del sistema"
-ls -la "$R/boot" 2>/dev/null | head -30
-ls "$R/usr/lib/modules" 2>/dev/null
-find "$R/boot/efi" -maxdepth 4 2>/dev/null | head -30
-find "$R/usr/lib/shim" "$R/usr/lib/grub" "$R/usr/lib/grub2" -maxdepth 2 2>/dev/null | head -30
+ls -la "$R/boot" 2>/dev/null | head -30 || true
+ls "$R/usr/lib/modules" 2>/dev/null || true
+find "$R/boot/efi" -maxdepth 4 2>/dev/null | head -30 || true
+find "$R/usr/lib/shim" "$R/usr/lib/grub" "$R/usr/lib/grub2" "$R/usr/share/shim" -maxdepth 3 2>/dev/null | head -40 || true
 ls "$R/boot/loader/entries" 2>/dev/null || echo "(sin entradas BLS)"
 
 titulo "Gestor de paquetes, initramfs y arranque"
@@ -77,27 +77,27 @@ done
 titulo "Paquetes relacionados con el modo en vivo, el instalador y el arranque"
 if [[ -x "$R/usr/bin/rpm" ]]; then
     chroot "$R" rpm -qa --qf '%{NAME} %{VERSION}-%{RELEASE}\n' 2>/dev/null \
-        | grep -Ei 'anaconda|live|initial-setup|shim|grub2|dracut|kernel-core|kernel-modules|selinux-policy|glibc-.*langpack|langpacks|firefox|NetworkManager-wifi|gdm|exfat|gdisk|btrfs|sudo' | sort | head -80
+        | grep -Ei 'anaconda|live|initial-setup|shim|grub2|dracut|kernel-core|kernel-modules|selinux-policy|glibc-.*langpack|langpacks|firefox|NetworkManager-wifi|gdm|exfat|gdisk|btrfs|sudo' | sort | head -80 || true
     echo "paquetes en total: $(chroot "$R" rpm -qa 2>/dev/null | wc -l)"
 elif [[ -x "$R/usr/bin/dpkg-query" ]]; then
-    chroot "$R" dpkg-query -W -f='${Package} ${Version}\n' | grep -Ei 'live|calamares|shim|grub|initramfs|casper|ubiquity' | head -60
+    chroot "$R" dpkg-query -W -f='${Package} ${Version}\n' | grep -Ei 'live|calamares|shim|grub|initramfs|casper|ubiquity' | head -60 || true
 elif [[ -x "$R/usr/bin/pacman" ]]; then
-    chroot "$R" pacman -Q | grep -Ei 'archiso|live|calamares|shim|grub|mkinitcpio|linux ' | head -60
+    chroot "$R" pacman -Q | grep -Ei 'archiso|live|calamares|shim|grub|mkinitcpio|linux ' | head -60 || true
 fi
 
 titulo "Configuración que afecta a Llevix"
 for f in etc/selinux/config etc/default/grub etc/dracut.conf etc/fstab etc/locale.conf \
          etc/vconsole.conf etc/X11/xorg.conf.d/00-keyboard.conf etc/kernel/install.conf \
          etc/mkinitcpio.conf; do
-    [[ -f "$R/$f" ]] && { echo "--- /$f"; grep -v '^\s*#' "$R/$f" | grep -v '^\s*$' | head -15; }
+    if [[ -f "$R/$f" ]]; then echo "--- /$f"; grep -v '^\s*#' "$R/$f" | grep -v '^\s*$' | head -15 || true; fi
 done
-ls "$R/etc/dracut.conf.d" "$R/usr/lib/dracut/dracut.conf.d" 2>/dev/null
-cat "$R"/etc/dracut.conf.d/*.conf 2>/dev/null | head -20
-ls "$R/etc/kernel/install.d" "$R/usr/lib/kernel/install.d" 2>/dev/null
-echo "grupos: $(grep -E '^(sudo|wheel|adm|users|lpadmin|plugdev):' "$R/etc/group" | cut -d: -f1 | tr '\n' ' ')"
+ls "$R/etc/dracut.conf.d" "$R/usr/lib/dracut/dracut.conf.d" 2>/dev/null || true
+cat "$R"/etc/dracut.conf.d/*.conf "$R"/usr/lib/dracut/dracut.conf.d/*.conf 2>/dev/null | grep -v '^\s*#' | head -30 || true
+ls "$R/etc/kernel/install.d" "$R/usr/lib/kernel/install.d" 2>/dev/null || true
+echo "grupos: $(grep -E '^(sudo|wheel|adm|users|lpadmin|plugdev):' "$R/etc/group" | cut -d: -f1 | tr '\n' ' ' || true)"
 echo "usuarios >= 1000: $(awk -F: '$3>=1000 && $3<65000 {print $1}' "$R/etc/passwd" | tr '\n' ' ')"
 
 titulo "Servicios del modo en vivo"
-find "$R/etc/systemd/system" "$R/usr/lib/systemd/system" -maxdepth 2 -iname '*live*' 2>/dev/null | head -20
+find "$R/etc/systemd/system" "$R/usr/lib/systemd/system" -maxdepth 2 -iname '*live*' 2>/dev/null | head -20 || true
 echo
 echo "Exploración terminada."
