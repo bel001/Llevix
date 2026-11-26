@@ -18,7 +18,10 @@
 #
 # SEGURIDAD: solo trabaja en el disco desde el que arrancó (el que contiene /).
 
-set -euo pipefail
+# -E: el aviso de error (trap ERR) vale también dentro de las funciones. Sin él, un comando
+# que falla dentro de una función (por ejemplo, mount en "monta") cierra el instalador sin
+# explicar el motivo ni deshacer nada.
+set -Eeuo pipefail
 
 INICIO_RESERVA=$((16 * 1024 * 1024 * 1024))   # bytes desde el inicio de la partición 4
 ENCABEZADO=$((1024 * 1024))
@@ -38,6 +41,7 @@ paso()  { echo; echo "==> $*"; serie "paso=$*"; }
 
 limpiar() {
     local i
+    trap - ERR
     set +e
     for (( i=${#LIMPIAR[@]}-1; i>=0; i-- )); do bash -c "${LIMPIAR[i]}" >/dev/null 2>&1; done
     LIMPIAR=()
@@ -76,9 +80,28 @@ trap 'fallar "falló un comando inesperadamente (línea $LINENO)"' ERR
 
 monta() { mkdir -p "$2"; mount "${@:3}" "$1" "$2"; LIMPIAR+=("umount -l '$2'"); }
 
-# Ejecuta una función de la familia con el aviso de error (trap ERR) activo también dentro
-# de ella (-E), como si su código estuviera escrito aquí.
-en_familia() { set -E; "$@"; set +E; }
+# Ejecuta una función del módulo de la familia (familias/*.sh). El aviso de error vale
+# también dentro de ella (set -E, arriba), como si su código estuviera escrito aquí.
+en_familia() { "$@"; }
+
+# Monta una imagen del sistema de la ISO (squashfs, EROFS…). El kernel del instalador
+# (Ubuntu 24.04) no lee los EROFS comprimidos con LZMA (Fedora 42 y posteriores): esos se
+# leen con erofsfuse, que es más lento pero entiende todos los formatos de compresión.
+monta_capa() {
+    mkdir -p "$2"
+    if mount -o ro ${tipo_capa:+-t "$tipo_capa"} "$1" "$2" 2>/dev/null; then
+        LIMPIAR+=("umount -l '$2'")
+        return 0
+    fi
+    if [[ "$(blkid -o value -s TYPE "$1" 2>/dev/null || true)" == "erofs" ]] && command -v erofsfuse >/dev/null; then
+        echo "El sistema de la ISO usa una compresión EROFS que se lee con erofsfuse (más lento)."
+        if erofsfuse "$1" "$2" >/dev/null; then
+            LIMPIAR+=("umount -l '$2'")
+            return 0
+        fi
+    fi
+    fallar "no se pudo abrir el sistema que trae la ISO ($(basename "$1"))"
+}
 
 # ---------- Disco y encabezado ----------
 
@@ -172,7 +195,7 @@ capas_montadas=()
 i=0
 for c in "${capas[@]}"; do
     # tipo_capa vacío: mount detecta el formato (squashfs, EROFS…).
-    monta "$c" "$T/capa$i" -o ro ${tipo_capa:+-t "$tipo_capa"}
+    monta_capa "$c" "$T/capa$i"
     capas_montadas=("$T/capa$i" "${capas_montadas[@]}")   # la última capa va arriba
     i=$((i + 1))
 done
