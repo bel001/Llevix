@@ -137,8 +137,9 @@ nombre_familia="$("$JQ" -r --arg id "$familia" '.familias[] | select(.id == $id)
 firmante_esperado="$("$JQ" -r --arg id "$familia" '.familias[] | select(.id == $id) | .firmante' "$FAMILIAS/familias.json")"
 # shellcheck source=image/instalador/familias/casper.sh
 # shellcheck source=image/instalador/familias/live-boot.sh
+# shellcheck source=image/instalador/familias/dracut.sh
 source "$FAMILIAS/$familia.sh"
-capas=(); quitar=""; kernel=""; version=""
+capas=(); tipo_capa="squashfs"; quitar=""; kernel=""; version=""
 en_familia familia_sistema
 nombre_distro="$(head -n1 "$T/iso/.disk/info" 2>/dev/null | tr -cd 'A-Za-z0-9 ._()"+-' | cut -c1-80)"
 echo "Distro: ${nombre_distro:-desconocida}; $nombre_familia; capas: ${#capas[@]}"
@@ -169,7 +170,8 @@ btrfs -q subvolume create "$T/tope/@nuevo"
 capas_montadas=()
 i=0
 for c in "${capas[@]}"; do
-    monta "$c" "$T/capa$i" -o ro -t squashfs
+    # tipo_capa vacío: mount detecta el formato (squashfs, EROFS…).
+    monta "$c" "$T/capa$i" -o ro ${tipo_capa:+-t "$tipo_capa"}
     capas_montadas=("$T/capa$i" "${capas_montadas[@]}")   # la última capa va arriba
     i=$((i + 1))
 done

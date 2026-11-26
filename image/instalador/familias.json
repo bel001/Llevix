@@ -41,14 +41,14 @@
     {
       "id": "dracut",
       "nombre": "familia Fedora (dracut)",
-      "soportada": false,
+      "soportada": true,
       "archivos": [
         "LiveOS/squashfs.img"
       ],
       "carpetas_kernel": [
+        "boot/x86_64/loader",
         "images/pxeboot",
-        "isolinux",
-        "boot/x86_64/loader"
+        "isolinux"
       ],
       "firmante": "Fedora",
       "ejemplos": [

@@ -114,7 +114,7 @@ if [[ ! -f "$CONFIG" ]]; then
     elif ! getent passwd llevix >/dev/null; then
         log "no hay $CONFIG; se crea la cuenta 'llevix' (contraseña 'llevix', hay que cambiarla)"
         grupos=""
-        for g in adm cdrom sudo dip plugdev lpadmin users; do
+        for g in adm cdrom sudo wheel dip plugdev lpadmin users; do
             getent group "$g" >/dev/null && grupos+="${grupos:+,}$g"
         done
         useradd --create-home --shell /bin/bash --comment "Llevix" --groups "$grupos" \
@@ -241,7 +241,8 @@ uuid_datos="$(blkid -s UUID -o value "$datos")"
 # ---------- Ajustes del sistema (con respaldo para poder deshacer) ----------
 
 mkdir -p "$RESPALDO"
-for f in /etc/hostname /etc/hosts /etc/timezone /etc/default/locale /etc/default/keyboard /etc/fstab; do
+for f in /etc/hostname /etc/hosts /etc/timezone /etc/default/locale /etc/default/keyboard /etc/fstab \
+         /etc/locale.conf /etc/vconsole.conf /etc/X11/xorg.conf.d/00-keyboard.conf; do
     if [[ -e "$f" ]]; then
         cp -a "$f" "$RESPALDO/"
         DESHACER+=("cp -a '$RESPALDO/$(basename "$f")' '$f'")
@@ -260,18 +261,25 @@ ln -sf "/usr/share/zoneinfo/$zona" /etc/localtime
 echo "$zona" > /etc/timezone
 
 log "idioma: $idioma"
-if [[ -d /var/lib/locales/supported.d ]]; then
-    locale-gen "$idioma" >/dev/null
-else
-    # Debian: locale-gen genera lo que está activo en /etc/locale.gen.
-    grep -q "^$idioma UTF-8" /etc/locale.gen || echo "$idioma UTF-8" >> /etc/locale.gen
-    locale-gen >/dev/null
-fi
 idioma_corto="${idioma%%.*}"
-update-locale LANG="$idioma" LANGUAGE="$idioma_corto:${idioma_corto%%_*}"
+if command -v update-locale >/dev/null; then
+    if [[ -d /var/lib/locales/supported.d ]]; then
+        locale-gen "$idioma" >/dev/null
+    else
+        # Debian: locale-gen genera lo que está activo en /etc/locale.gen.
+        grep -q "^$idioma UTF-8" /etc/locale.gen || echo "$idioma UTF-8" >> /etc/locale.gen
+        locale-gen >/dev/null
+    fi
+    update-locale LANG="$idioma" LANGUAGE="$idioma_corto:${idioma_corto%%_*}"
+else
+    # Fedora y otras: /etc/locale.conf (los idiomas ya vienen compilados en glibc-langpack).
+    printf 'LANG=%s\nLANGUAGE=%s\n' "$idioma" "$idioma_corto:${idioma_corto%%_*}" > /etc/locale.conf
+fi
 
 log "teclado: $teclado $variante"
-cat > /etc/default/keyboard <<EOF
+if [[ -f /etc/default/keyboard ]] || command -v dpkg >/dev/null; then
+    # Debian, Ubuntu y derivadas.
+    cat > /etc/default/keyboard <<EOF
 # Configurado por Llevix en el primer arranque.
 XKBMODEL="pc105"
 XKBLAYOUT="$teclado"
@@ -279,11 +287,32 @@ XKBVARIANT="$variante"
 XKBOPTIONS=""
 BACKSPACE="guess"
 EOF
+else
+    # Fedora y otras: lo mismo que escribiría localectl (escritorio y consola).
+    mkdir -p /etc/X11/xorg.conf.d
+    cat > /etc/X11/xorg.conf.d/00-keyboard.conf <<EOF
+# Configurado por Llevix en el primer arranque.
+Section "InputClass"
+        Identifier "system-keyboard"
+        MatchIsKeyboard "on"
+        Option "XkbLayout" "$teclado"
+        Option "XkbModel" "pc105"
+        Option "XkbVariant" "$variante"
+EndSection
+EOF
+    case "$teclado" in
+        latam) mapa_consola="la-latin1" ;;
+        br) mapa_consola="br-abnt2" ;;
+        pt) mapa_consola="pt-latin1" ;;
+        *) mapa_consola="$teclado" ;;
+    esac
+    printf 'KEYMAP=%s\n' "$mapa_consola" > /etc/vconsole.conf
+fi
 
 # ---------- Usuario ----------
 
 grupos=""
-for g in adm cdrom sudo dip plugdev lpadmin users; do
+for g in adm cdrom sudo wheel dip plugdev lpadmin users; do
     getent group "$g" >/dev/null && grupos+="${grupos:+,}$g"
 done
 

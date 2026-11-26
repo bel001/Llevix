@@ -114,6 +114,12 @@ pub fn probadas() -> &'static [Probada] {
     })
 }
 
+/// Nombre de archivo de un kernel en la ISO: "vmlinuz…" (Ubuntu, Debian) o "linux" (Fedora).
+fn es_kernel(nombre: &str) -> bool {
+    let n = nombre.to_ascii_lowercase();
+    n.starts_with("vmlinuz") || n == "linux"
+}
+
 fn ejemplos_soportados() -> String {
     familias().iter().filter(|f| f.soportada).flat_map(|f| f.ejemplos.iter().cloned()).collect::<Vec<_>>().join(", ")
 }
@@ -249,6 +255,15 @@ pub fn analizar<R: Read + Seek>(r: &mut R, nombre_archivo: &str, revisar_probada
 }
 
 fn analizar_con<R: Read + Seek>(r: &mut R, nombre_archivo: &str, lista: &[Probada]) -> Resultado<InfoIso> {
+    analizar_con_familias(r, nombre_archivo, lista, familias())
+}
+
+fn analizar_con_familias<R: Read + Seek>(
+    r: &mut R,
+    nombre_archivo: &str,
+    lista: &[Probada],
+    todas: &[Familia],
+) -> Resultado<InfoIso> {
     let tamano = r.seek(SeekFrom::End(0))?;
     if tamano > MAX_ISO {
         return Err(Error::Config(format!(
@@ -261,7 +276,7 @@ fn analizar_con<R: Read + Seek>(r: &mut R, nombre_archivo: &str, lista: &[Probad
 
     // 1. Familia, por las señales de familias.json.
     let mut reconocida = None;
-    'familias: for f in familias() {
+    'familias: for f in todas {
         for a in &f.archivos {
             if buscar(r, &v, a)?.is_some() {
                 reconocida = Some(f);
@@ -288,7 +303,7 @@ fn analizar_con<R: Read + Seek>(r: &mut R, nombre_archivo: &str, lista: &[Probad
     let mut tiene_kernel = false;
     for c in &familia.carpetas_kernel {
         if let Some(d) = buscar(r, &v, c)?.filter(|d| d.es_dir) {
-            if leer_directorio(r, d.sector, d.tamano, v.joliet)?.iter().any(|e| e.nombre.to_ascii_lowercase().starts_with("vmlinuz")) {
+            if leer_directorio(r, d.sector, d.tamano, v.joliet)?.iter().any(|e| es_kernel(&e.nombre)) {
                 tiene_kernel = true;
                 break;
             }
@@ -560,12 +575,30 @@ pub(crate) mod pruebas {
 
     #[test]
     fn reconoce_familias_que_todavia_no_instala() {
-        let fedora = iso_de_prueba(&[("LiveOS/squashfs.img", b"x"), ("isolinux/vmlinuz", b"k")]);
-        let r = analizar(&mut Cursor::new(fedora), "fedora.iso", true);
-        assert!(matches!(r, Err(Error::Config(ref m)) if m.contains("familia Fedora") && m.contains("todavía no")), "{r:?}");
-        let debian = iso_de_prueba(&[("live/filesystem.squashfs", b"x"), ("live/vmlinuz", b"k")]);
-        let r = analizar(&mut Cursor::new(debian), "debian.iso", true);
-        assert!(matches!(r, Err(Error::Config(ref m)) if m.contains("familia Debian")), "{r:?}");
+        // Una familia no soportada armada a mano (todas las del archivo real pueden cambiar).
+        let fam = vec![Familia {
+            id: "x".into(),
+            nombre: "familia X".into(),
+            soportada: false,
+            archivos: vec!["xx/sistema.img".into()],
+            carpetas_kernel: vec!["xx".into()],
+            ejemplos: vec!["Distro X".into()],
+        }];
+        let iso = iso_de_prueba(&[("xx/sistema.img", b"x"), ("xx/vmlinuz", b"k")]);
+        let r = analizar_con_familias(&mut Cursor::new(iso), "x.iso", &[], &fam);
+        assert!(matches!(r, Err(Error::Config(ref m)) if m.contains("familia X") && m.contains("todavía no")), "{r:?}");
+    }
+
+    #[test]
+    fn reconoce_debian_y_fedora() {
+        let debian = iso_de_prueba(&[("live/filesystem.squashfs", b"x"), ("live/vmlinuz-6.12", b"k")]);
+        let info = analizar(&mut Cursor::new(debian), "debian.iso", true).unwrap();
+        assert_eq!(info.familia, "live-boot");
+        // Fedora guarda el kernel como boot/x86_64/loader/linux; el lector de prueba solo arma
+        // un nivel de carpetas, así que se usa la otra carpeta que acepta la familia.
+        let fedora = iso_de_prueba(&[("LiveOS/squashfs.img", b"x"), ("isolinux/linux", b"k")]);
+        let info = analizar(&mut Cursor::new(fedora), "fedora.iso", true).unwrap();
+        assert_eq!(info.familia, "dracut");
     }
 
     #[test]
