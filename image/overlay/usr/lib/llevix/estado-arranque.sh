@@ -46,7 +46,7 @@ fi
 sonido="no"
 if grep -q '\[' /proc/asound/cards 2>/dev/null; then sonido="si"; fi
 navegador="no"
-for b in firefox /usr/lib/firefox/firefox chromium chromium-browser google-chrome brave-browser; do
+for b in firefox firefox-esr /usr/lib/firefox/firefox chromium chromium-browser google-chrome brave-browser; do
     if command -v "$b" >/dev/null; then navegador="$b"; break; fi
 done
 datos="$(findmnt -rno TARGET -S LABEL=LLEVIX 2>/dev/null | head -n1 || true)"
